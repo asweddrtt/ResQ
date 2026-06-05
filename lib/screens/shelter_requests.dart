@@ -196,7 +196,6 @@ class _ShelterRequestsScreenState extends State<ShelterRequestsScreen> {
   }
 
   Widget _buildRequestsList() {
-    // 🚨 Filter the local data based on the tab clicked
     final filteredRequests = _requests.where((req) {
       final status = req['status'] ?? 'pending';
       if (_selectedTabIndex == 0) return status == 'pending';

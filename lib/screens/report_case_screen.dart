@@ -766,7 +766,6 @@ class _ReportCaseScreenState extends State<ReportCaseScreen> {
     );
   }
 
-  // For the actual selected images
   Widget _buildImageThumbnail(File image, int index) {
     return Stack(
       children: [

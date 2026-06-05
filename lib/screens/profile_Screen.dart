@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -192,7 +193,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           borderRadius: BorderRadius.circular(15)),
                       child: Text(_notificationsEnabled ? "ON" : "OFF", style: GoogleFonts.nunito(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white)))),
               _buildMenuTile(icon: Icons.shield_outlined, title: "Account & Security", subtitle: "Phone, email, password",onTap: _showAccountSecurity),
-              _buildMenuTile(icon: Icons.credit_card_outlined, title: "Donations", subtitle: "History and receipts"),
+              _buildMenuTile(
+                icon: Icons.volunteer_activism_outlined, // Changed icon to match donation vibe
+                title: "Make a Donation",
+                subtitle: "Support our platform and partners",
+                onTap: _showDonationSheet,
+              ),
               const SizedBox(height: 30),
 
               // ==========================================
@@ -251,6 +257,220 @@ class _ProfileScreenState extends State<ProfileScreen> {
   // ==========================================
   // HELPER WIDGETS
   // ==========================================
+
+  // ==========================================
+  // LOGIC: Show Donation Bottom Sheet
+  // ==========================================
+  // ==========================================
+  // LOGIC: Show Donation Bottom Sheet
+  // ==========================================
+  void _showDonationSheet() {
+    final TextEditingController amountController = TextEditingController();
+    String? selectedOrg;
+    bool isProcessing = false;
+
+    // Helper future to fetch all organizations
+    Future<List<String>> fetchOrganizations() async {
+      final supabase = Supabase.instance.client;
+      final shelters = await supabase.from('shelters').select('name');
+      final clinics = await supabase.from('clinics').select('name');
+
+      // 🚨 FIX 1: Use a Set to automatically remove duplicate names
+      Set<String> orgs = {};
+
+      for (var s in shelters) {
+        final name = s['name']?.toString().trim();
+        if (name != null && name.isNotEmpty) orgs.add(name);
+      }
+      for (var c in clinics) {
+        final name = c['name']?.toString().trim();
+        if (name != null && name.isNotEmpty) orgs.add(name);
+      }
+      return orgs.toList()..sort(); // Convert back to list and sort
+    }
+
+    // 🚨 FIX 2: Store the future once so it doesn't rebuild on every state change
+    final Future<List<String>> orgsFuture = fetchOrganizations();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+            builder: (BuildContext context, StateSetter setSheetState) {
+              return Padding(
+                padding: EdgeInsets.only(bottom: MediaQuery.of(sheetContext).viewInsets.bottom),
+                child: Container(
+                  height: MediaQuery.of(sheetContext).size.height * 0.6,
+                  padding: const EdgeInsets.only(top: 20, left: 20, right: 20, bottom: 20),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(child: Container(width: 40, height: 5, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(10)))),
+                      const SizedBox(height: 20),
+                      Text("Make a Donation", style: GoogleFonts.nunito(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.black87)),
+                      Text("Support the rescue community", style: GoogleFonts.nunito(fontSize: 14, color: Colors.grey.shade500, fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 25),
+
+                      // AMOUNT INPUT
+                      Text("Amount (EGP)", style: GoogleFonts.nunito(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.black87)),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: amountController,
+                        keyboardType: TextInputType.number,
+                        style: GoogleFonts.nunito(fontSize: 18, fontWeight: FontWeight.bold),
+                        decoration: InputDecoration(
+                          prefixIcon: const Icon(Icons.attach_money, color: Color(0xff5bb381)),
+                          hintText: "0.00",
+                          filled: true,
+                          fillColor: Colors.grey.shade50,
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
+                          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: const BorderSide(color: Color(0xff5bb381), width: 2)),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+
+                      // ORGANIZATION DROPDOWN
+                      Text("Direct my donation to (Optional)", style: GoogleFonts.nunito(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.black87)),
+                      const SizedBox(height: 8),
+                      FutureBuilder<List<String>>(
+                        future: orgsFuture, // 🚨 using the stored future here
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return const Center(child: CircularProgressIndicator(color: Color(0xff5bb381)));
+                          }
+
+                          List<String> orgList = snapshot.data ?? [];
+                          return DropdownButtonFormField<String>(
+                            decoration: InputDecoration(
+                              filled: true,
+                              fillColor: Colors.grey.shade50,
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
+                            ),
+                            hint: Text("General Platform Fund", style: GoogleFonts.nunito(color: Colors.grey.shade500)),
+                            value: selectedOrg,
+                            isExpanded: true,
+                            items: orgList.map((String org) {
+                              return DropdownMenuItem<String>(
+                                value: org,
+                                child: Text(org, style: GoogleFonts.nunito(fontWeight: FontWeight.w700)),
+                              );
+                            }).toList(),
+                            onChanged: (val) => setSheetState(() => selectedOrg = val),
+                          );
+                        },
+                      ),
+
+                      const Spacer(),
+
+                      // PAY BUTTON
+                      SizedBox(
+                        width: double.infinity,
+                        height: 55,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xff5bb381),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                            elevation: 0,
+                          ),
+                          onPressed: isProcessing ? null : () async {
+                            final amountText = amountController.text.trim();
+                            final amount = double.tryParse(amountText);
+
+                            if (amount == null || amount <= 0) {
+                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please enter a valid amount", style: TextStyle(color: Colors.white)), backgroundColor: Colors.redAccent));
+                              return;
+                            }
+
+                            setSheetState(() => isProcessing = true);
+
+                            try {
+                              debugPrint("--- STRIPE FLOW START ---");
+                              debugPrint("1. Calling Supabase Edge Function...");
+
+                              final response = await Supabase.instance.client.functions.invoke(
+                                'payment-intent',
+                                body: {'amount': amount},
+                              ).timeout(const Duration(seconds: 30));
+
+                              debugPrint("2. Function Response received: ${response.data}");
+
+                              final clientSecret = response.data['clientSecret'];
+                              final transactionId = response.data['transactionId'];
+
+                              if (clientSecret == null) {
+                                throw Exception("Edge function did not return a clientSecret.");
+                              }
+
+                              debugPrint("3. Initializing Stripe Payment Sheet...");
+                              await Stripe.instance.initPaymentSheet(
+                                paymentSheetParameters: SetupPaymentSheetParameters(
+                                  paymentIntentClientSecret: clientSecret,
+                                  merchantDisplayName: 'ResQ App',
+                                ),
+                              );
+
+                              debugPrint("4. Presenting Payment Sheet to user...");
+                              await Stripe.instance.presentPaymentSheet();
+
+                              debugPrint("5. Payment successful! Saving to database...");
+                              final user = Supabase.instance.client.auth.currentUser;
+                              await Supabase.instance.client.from('donations').insert({
+                                'donor_user_id': user?.id,
+                                'amount': amount,
+                                'status': 'completed',
+                                'payment_method': 'stripe',
+                                'transaction_id': transactionId,
+                                'currency': 'EGP',
+                                'notes': selectedOrg != null ? 'Directed to: $selectedOrg' : 'General Platform Fund',
+                              }).timeout(const Duration(seconds: 10));
+
+                              if (sheetContext.mounted) {
+                                Navigator.pop(sheetContext);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text("Donation successful! Thank you!"), backgroundColor: Color(0xff5bb381))
+                                );
+                              }
+                            } on StripeException catch (e) {
+                              debugPrint("Stripe Exception: ${e.error.localizedMessage}");
+                              if (sheetContext.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text("Payment cancelled or failed."), backgroundColor: Colors.orange)
+                                );
+                              }
+                            } catch (e) {
+                              debugPrint("General Error caught: $e");
+                              if (sheetContext.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text("Error: $e"), backgroundColor: Colors.redAccent)
+                                );
+                              }
+                            } finally {
+                              debugPrint("--- STRIPE FLOW END ---");
+                              if (sheetContext.mounted) {
+                                setSheetState(() => isProcessing = false);
+                              }
+                            }
+                          },
+                          child: isProcessing
+                              ? const CircularProgressIndicator(color: Colors.white)
+                              : Text("Proceed to Payment", style: GoogleFonts.nunito(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+        );
+      },
+    );
+  }
 
   Widget _buildProfileTag(IconData icon, String text) {
     return Container(

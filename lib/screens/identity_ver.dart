@@ -200,7 +200,6 @@ class _IdentityVerificationScreenState extends State<IdentityVerificationScreen>
             }
           } else {
             lastUploadError = uploadError;
-            // 3. REST API Fallback
             try {
               await _uploadUsingRestFallback(
                 supabase: supabase,

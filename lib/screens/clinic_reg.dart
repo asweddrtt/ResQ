@@ -142,7 +142,13 @@ class _ClinicReg extends State<ClinicReg> {
       final authResponse = await supabase.auth.signUp(
         email: email,
         password: password,
-        data: {'role': 'clinic'},
+        data: {
+          'role': 'clinic',
+          'clinic_name': name,
+          'phone': _phoneController.text.trim(),
+          'license_number': _licenseController.text.trim(),
+          'city': _cityController.text.trim(),
+        },
       );
 
       final user = authResponse.user;
@@ -150,23 +156,13 @@ class _ClinicReg extends State<ClinicReg> {
 
       await supabase.from('users').update({'role': 'clinic'}).eq('id', user.id);
 
-      // 2. Insert clinic AND fetch the newly generated Clinic ID
-      final clinicResponse = await supabase.from('clinics').insert({
-        'user_id': user.id,
-        'name': name,
-        'phone': _phoneController.text.trim(),
-        'license_number': _licenseController.text.trim(),
-        'city': _cityController.text.trim(),
-        'status': 'pending',
-      }).select().single();
-
-      final String clinicId = clinicResponse['id'];
-
-      // 3. Insert into clinic_verifications
+      // 2. Insert ONLY the verification status into clinic_verifications
       await supabase.from('clinic_verifications').insert({
-        'clinic_id': clinicId,
+        'clinic_id': user.id,
         'status': 'pending',
       });
+
+      // (Proceed to Step 4. Robust Document Upload...)
 
       // 4. Robust Document Upload
       if (_selectedFilePath != null) {

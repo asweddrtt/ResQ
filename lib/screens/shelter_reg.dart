@@ -98,7 +98,7 @@ class _ShelterRegistrationScreenState extends State<ShelterRegistrationScreen> {
     required SupabaseClient supabase,
     required String bucket,
     required String filePath,
-    required Uint8List bytes, // CHANGED from File to Uint8List
+    required Uint8List bytes,
     required String contentType,
   }) async {
     final session = supabase.auth.currentSession;

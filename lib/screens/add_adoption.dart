@@ -153,19 +153,16 @@ class _AddAdoptionScreenState extends State<AddAdoptionScreen> {
       final user = supabase.auth.currentUser;
       if (user == null) throw Exception("User not logged in");
 
-      // 1. Get Shelter ID for this user
       final shelterData = await supabase.from('shelters').select('id').eq('user_id', user.id).maybeSingle();
       if (shelterData == null) throw Exception("Shelter profile not found for this user.");
       final String shelterId = shelterData['id'];
 
-      // Map UI values to DB Constraints
       final speciesMap = ['dog', 'cat', 'other'];
       final genderMap = ['male', 'female'];
       final sizeMap = ['small', 'medium', 'large'];
       final livingMap = ['indoor', 'outdoor', 'both'];
       final energyMap = ['low', 'medium', 'high'];
 
-      // 2. Insert Animal
       final animalResponse = await supabase.from('animals').insert({
         'shelter_id': shelterId,
         'name': _nameCtrl.text.trim().isEmpty ? 'Buddy' : _nameCtrl.text.trim(),

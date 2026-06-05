@@ -62,11 +62,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     try {
       final supabase = Supabase.instance.client;
 
-      // 1. Create the Auth User and capture the response
       final AuthResponse res = await supabase.auth.signUp(
         email: _emailController.text.trim(),
         password: _passController.text,
-        // Keeping the metadata here in case you still need their name saved in auth!
         data: {
           'full_name': '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}',
           'role': 'volunteer',
@@ -75,12 +73,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       final user = res.user;
 
-      // 2. Insert into user_verifications using the new user's ID
       if (user != null) {
         await supabase.from('user_verifications').insert({
           'user_id': user.id,
           'doc_type': 'national_id',
-          'status': 'pending', // Starting as pending makes sense for a new registration
+          'status': 'pending',
         });
       }
 

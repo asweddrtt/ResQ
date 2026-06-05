@@ -27,6 +27,7 @@ class _OrganizationProfileScreenState extends State<OrganizationProfileScreen> {
   final TextEditingController _addressCtrl = TextEditingController();
   final TextEditingController _descCtrl = TextEditingController();
 
+  final TextEditingController _hoursCtrl = TextEditingController();
   final Color _primaryGreen = const Color(0xff5bb381);
   final Color _bgGrey = const Color(0xffF8F9FA);
 
@@ -64,6 +65,7 @@ class _OrganizationProfileScreenState extends State<OrganizationProfileScreen> {
           _cityCtrl.text = data?['city'] ?? '';
           _addressCtrl.text = data?['address'] ?? '';
           _descCtrl.text = data?['description'] ?? '';
+          _hoursCtrl.text = data?['working_hours'] ?? '';
           _licenseNumber = data?['license_number'] ?? 'Not provided';
           _status = data?['status'] ?? 'pending';
           _isLoading = false;
@@ -94,6 +96,7 @@ class _OrganizationProfileScreenState extends State<OrganizationProfileScreen> {
         'city': _cityCtrl.text.trim(),
         'address': _addressCtrl.text.trim(),
         'description': _descCtrl.text.trim(),
+        'working_hours': _hoursCtrl.text.trim(),
         'updated_at': DateTime.now().toUtc().toIso8601String(),
       }).eq('user_id', user!.id);
 
@@ -200,6 +203,10 @@ class _OrganizationProfileScreenState extends State<OrganizationProfileScreen> {
 
           _buildLabel("Street Address"),
           _buildTextField(controller: _addressCtrl, icon: Icons.map_outlined),
+          const SizedBox(height: 15),
+
+          _buildLabel("Working Hours"),
+          _buildTextField(controller: _hoursCtrl, icon: Icons.access_time),
           const SizedBox(height: 15),
 
           _buildLabel("About Us / Description"),
