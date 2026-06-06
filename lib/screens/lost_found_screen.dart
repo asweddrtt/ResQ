@@ -136,23 +136,7 @@ class _LostFoundScreenState extends State<LostFoundScreen> {
                             ],
                           ),
                         ),
-                        // Notification Bell (simple - no fake count)
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 5)],
-                          ),
-                          child: const Icon(Icons.notifications_none_outlined, color: Colors.black54, size: 20),
-                        ),
-                        const SizedBox(width: 10),
-                        // Profile Avatar
-                        const CircleAvatar(
-                          radius: 18,
-                          backgroundColor: Color(0xff5bb381),
-                          child: Icon(Icons.person, color: Colors.white, size: 18),
-                        ),
+
                       ],
                     ),
                     const SizedBox(height: 20),
@@ -266,18 +250,28 @@ class _LostFoundScreenState extends State<LostFoundScreen> {
                           Positioned(
                             bottom: 10,
                             right: 10,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: const Color(0xff2d3436), // Dark slate
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.open_in_full, color: Colors.white, size: 14),
-                                  const SizedBox(width: 5),
-                                  Text("Open map", style: GoogleFonts.nunito(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
-                                ],
+                            child: GestureDetector(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => FullScreenMapScreen(reports: _filteredReports),
+                                  ),
+                                );
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xff2d3436), // Dark slate
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.open_in_full, color: Colors.white, size: 14),
+                                    const SizedBox(width: 5),
+                                    Text("Open map", style: GoogleFonts.nunito(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                                  ],
+                                ),
                               ),
                             ),
                           )
@@ -592,6 +586,77 @@ class _LostFoundScreenState extends State<LostFoundScreen> {
           Icon(icon, size: 12, color: Colors.black54),
           const SizedBox(width: 4),
           Text(label, style: GoogleFonts.nunito(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black54)),
+        ],
+      ),
+    );
+  }
+}
+// ==========================================
+// FULL SCREEN MAP WIDGET
+// ==========================================
+class FullScreenMapScreen extends StatelessWidget {
+  final List<Map<String, dynamic>> reports;
+
+  const FullScreenMapScreen({super.key, required this.reports});
+
+  @override
+  Widget build(BuildContext context) {
+    // New Cairo default center
+    final LatLng defaultLocation = const LatLng(30.0074, 31.4913);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Lost & Found Map', style: GoogleFonts.nunito(fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black87,
+        elevation: 0,
+      ),
+      body: FlutterMap(
+        options: MapOptions(
+          initialCenter: defaultLocation,
+          initialZoom: 13.0,
+        ),
+        children: [
+          TileLayer(
+            urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            userAgentPackageName: 'com.yourcompany.resq', // Update this to your package name
+          ),
+          MarkerLayer(
+            markers: reports
+                .where((r) => r['location_lat'] != null && r['location_lng'] != null)
+                .map((r) {
+              final isLost = r['type'] == 'lost';
+
+              // Safely parse lat/lng whether they come back as Strings or nums
+              final double lat = r['location_lat'] is String ? double.parse(r['location_lat']) : (r['location_lat'] as num).toDouble();
+              final double lng = r['location_lng'] is String ? double.parse(r['location_lng']) : (r['location_lng'] as num).toDouble();
+
+              return Marker(
+                point: LatLng(lat, lng),
+                width: 40,
+                height: 40,
+                child: GestureDetector(
+                  onTap: () {
+                    // Show a quick summary when a pin is tapped
+                    final title = isLost ? 'Lost Pet' : 'Found Pet';
+                    final desc = r['description'] ?? 'No details';
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text("$title: $desc"),
+                        backgroundColor: isLost ? Colors.red : const Color(0xff5bb381),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  },
+                  child: Icon(
+                    Icons.location_on,
+                    color: isLost ? Colors.red : const Color(0xff5bb381),
+                    size: 40,
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
         ],
       ),
     );

@@ -572,114 +572,277 @@ class _ProfileScreenState extends State<ProfileScreen> {
   // ==========================================
   // LOGIC: Show My Reports Bottom Sheet
   // ==========================================
+  // ==========================================
+  // LOGIC: Show My Reports Bottom Sheet
+  // ==========================================
   void _showMyReports() {
+    Key futureKey = UniqueKey(); // Used to force the FutureBuilder to refresh
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) {
+      builder: (sheetContext) {
         final user = Supabase.instance.client.auth.currentUser;
 
-        return Container(
-          height: MediaQuery.of(context).size.height * 0.75, // Takes up 75% of the screen
-          padding: const EdgeInsets.only(top: 20, left: 20, right: 20),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(width: 40, height: 5, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(10))),
-              ),
-              const SizedBox(height: 20),
-              Text("My Reports", style: GoogleFonts.nunito(fontSize: 22, fontWeight: FontWeight.w900)),
-              const SizedBox(height: 15),
-
-              Expanded(
-                child: FutureBuilder<List<Map<String, dynamic>>>(
-                  future: Supabase.instance.client
-                      .from('cases')
-                      .select()
-                      .eq('reported_by', user?.id ?? '')
-                      .order('created_at', ascending: false),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator(color: Color(0xff5bb381)));
-                    }
-                    if (snapshot.hasError) {
-                      return Center(child: Text("Error loading reports", style: GoogleFonts.nunito()));
-                    }
-
-                    final cases = snapshot.data;
-                    if (cases == null || cases.isEmpty) {
-                      return Center(child: Text("You haven't reported any cases yet.", style: GoogleFonts.nunito(color: Colors.grey)));
-                    }
-
-                    return ListView.builder(
-                      itemCount: cases.length,
-                      itemBuilder: (context, index) {
-                        final report = cases[index];
-                        final rawDate = DateTime.parse(report['created_at']);
-                        final dateStr = "${rawDate.year}-${rawDate.month.toString().padLeft(2, '0')}-${rawDate.day.toString().padLeft(2, '0')}";
-
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 15),
-                          padding: const EdgeInsets.all(15),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.grey.shade200),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    report['animal_type'] ?? 'Unknown Animal',
-                                    style: GoogleFonts.nunito(fontSize: 16, fontWeight: FontWeight.w800),
-                                  ),
-                                  Text(
-                                    dateStr,
-                                    style: GoogleFonts.nunito(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w700),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 5),
-                              Text(
-                                report['description'] ?? 'No description provided.',
-                                style: GoogleFonts.nunito(fontSize: 13, color: Colors.black87),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 12),
-                              Row(
-                                children: [
-                                  _buildStatusPill(
-                                      (report['status'] ?? 'Unknown').toString().toUpperCase(),
-                                      report['status'] == 'new' ? Colors.blue.shade50 : Colors.green.shade50,
-                                      report['status'] == 'new' ? Colors.blue : Colors.green
-                                  ),
-                                  const SizedBox(width: 8),
-                                  _buildStatusPill(
-                                      (report['severity'] ?? 'Unknown').toString().toUpperCase(),
-                                      report['severity'] == 'emergency' ? Colors.red.shade50 : Colors.orange.shade50,
-                                      report['severity'] == 'emergency' ? Colors.red : Colors.orange
-                                  ),
-                                ],
-                              )
-                            ],
-                          ),
-                        );
-                      },
-                    );
-                  },
+        return StatefulBuilder(
+            builder: (context, setSheetState) {
+              return Container(
+                height: MediaQuery.of(context).size.height * 0.75,
+                padding: const EdgeInsets.only(top: 20, left: 20, right: 20),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
                 ),
-              ),
-            ],
-          ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(width: 40, height: 5, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(10))),
+                    ),
+                    const SizedBox(height: 20),
+                    Text("My Reports", style: GoogleFonts.nunito(fontSize: 22, fontWeight: FontWeight.w900)),
+                    const SizedBox(height: 15),
+
+                    Expanded(
+                      child: FutureBuilder<List<Map<String, dynamic>>>(
+                        key: futureKey, // 🚨 Added key for refreshing
+                        future: Supabase.instance.client
+                            .from('cases')
+                            .select()
+                            .eq('reported_by', user?.id ?? '')
+                            .order('created_at', ascending: false),
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return const Center(child: CircularProgressIndicator(color: Color(0xff5bb381)));
+                          }
+                          if (snapshot.hasError) {
+                            return Center(child: Text("Error loading reports", style: GoogleFonts.nunito()));
+                          }
+
+                          final cases = snapshot.data;
+                          if (cases == null || cases.isEmpty) {
+                            return Center(child: Text("You haven't reported any cases yet.", style: GoogleFonts.nunito(color: Colors.grey)));
+                          }
+
+                          return ListView.builder(
+                            itemCount: cases.length,
+                            itemBuilder: (context, index) {
+                              final report = cases[index];
+                              final rawDate = DateTime.parse(report['created_at']);
+                              final dateStr = "${rawDate.year}-${rawDate.month.toString().padLeft(2, '0')}-${rawDate.day.toString().padLeft(2, '0')}";
+
+                              return Container(
+                                margin: const EdgeInsets.only(bottom: 15),
+                                padding: const EdgeInsets.all(15),
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: Colors.grey.shade200),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            report['animal_type'] ?? 'Unknown Animal',
+                                            style: GoogleFonts.nunito(fontSize: 16, fontWeight: FontWeight.w800),
+                                          ),
+                                        ),
+                                        Text(
+                                          dateStr,
+                                          style: GoogleFonts.nunito(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w700),
+                                        ),
+                                        // 🚨 CHANGED: Added Edit Button
+                                        IconButton(
+                                          icon: const Icon(Icons.edit_note, color: Color(0xff5bb381)),
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(),
+                                          onPressed: () {
+                                            _showEditReportSheet(report, () {
+                                              // Callback to refresh the list when edit is done
+                                              setSheetState(() {
+                                                futureKey = UniqueKey();
+                                              });
+                                            });
+                                          },
+                                        )
+                                      ],
+                                    ),
+                                    const SizedBox(height: 5),
+                                    Text(
+                                      report['description'] ?? 'No description provided.',
+                                      style: GoogleFonts.nunito(fontSize: 13, color: Colors.black87),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Row(
+                                      children: [
+                                        _buildStatusPill(
+                                            (report['status'] ?? 'Unknown').toString().toUpperCase(),
+                                            report['status'] == 'new' ? Colors.blue.shade50 : Colors.green.shade50,
+                                            report['status'] == 'new' ? Colors.blue : Colors.green
+                                        ),
+                                        const SizedBox(width: 8),
+                                        _buildStatusPill(
+                                            (report['severity'] ?? 'Unknown').toString().toUpperCase(),
+                                            report['severity'] == 'emergency' ? Colors.red.shade50 : Colors.orange.shade50,
+                                            report['severity'] == 'emergency' ? Colors.red : Colors.orange
+                                        ),
+                                      ],
+                                    )
+                                  ],
+                                ),
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+        );
+      },
+    );
+  }
+
+  // ==========================================
+  // LOGIC: Edit Report Bottom Sheet
+  // ==========================================
+  void _showEditReportSheet(Map<String, dynamic> report, VoidCallback onUpdateSuccess) {
+    final TextEditingController descController = TextEditingController(text: report['description']);
+    final TextEditingController locController = TextEditingController(text: report['location_text']);
+    String selectedSeverity = report['severity'] ?? 'normal';
+    bool isUpdating = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (editSheetContext) {
+        return StatefulBuilder(
+            builder: (context, setEditState) {
+              return Padding(
+                padding: EdgeInsets.only(bottom: MediaQuery.of(editSheetContext).viewInsets.bottom),
+                child: Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(child: Container(width: 40, height: 5, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(10)))),
+                      const SizedBox(height: 20),
+                      Text("Update Report", style: GoogleFonts.nunito(fontSize: 20, fontWeight: FontWeight.w900)),
+                      const SizedBox(height: 20),
+
+                      // Description Field
+                      TextField(
+                        controller: descController,
+                        maxLines: 3,
+                        decoration: InputDecoration(
+                          labelText: "Description",
+                          filled: true,
+                          fillColor: Colors.grey.shade50,
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
+                        ),
+                      ),
+                      const SizedBox(height: 15),
+
+                      // Location Field
+                      TextField(
+                        controller: locController,
+                        decoration: InputDecoration(
+                          labelText: "Location (Text)",
+                          hintText: "e.g., 12 Ismailia, New Cairo...",
+                          filled: true,
+                          fillColor: Colors.grey.shade50,
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
+                        ),
+                      ),
+                      const SizedBox(height: 15),
+
+                      // Severity Dropdown
+                      DropdownButtonFormField<String>(
+                        value: selectedSeverity,
+                        decoration: InputDecoration(
+                          labelText: "Severity",
+                          filled: true,
+                          fillColor: Colors.grey.shade50,
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
+                        ),
+                        items: ['low', 'normal', 'high', 'emergency'].map((String value) {
+                          return DropdownMenuItem<String>(
+                            value: value,
+                            child: Text(value.toUpperCase(), style: GoogleFonts.nunito()),
+                          );
+                        }).toList(),
+                        onChanged: (newValue) {
+                          setEditState(() => selectedSeverity = newValue!);
+                        },
+                      ),
+                      const SizedBox(height: 25),
+
+                      // Save Button
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xff5bb381),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                          ),
+                          onPressed: isUpdating ? null : () async {
+                            setEditState(() => isUpdating = true);
+                            try {
+                              await Supabase.instance.client
+                                  .from('cases')
+                                  .update({
+                                'description': descController.text.trim(),
+                                'location_text': locController.text.trim(),
+                                'severity': selectedSeverity,
+                                'updated_at': DateTime.now().toUtc().toIso8601String(),
+                              })
+                                  .eq('id', report['id']);
+
+                              if (editSheetContext.mounted) {
+                                Navigator.pop(editSheetContext); // Close edit sheet
+                                onUpdateSuccess(); // Trigger parent list refresh
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text("Report updated successfully!"), backgroundColor: Color(0xff5bb381)),
+                                );
+                              }
+                            } catch (e) {
+                              if (editSheetContext.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text("Error: $e"), backgroundColor: Colors.redAccent),
+                                );
+                              }
+                            } finally {
+                              if (editSheetContext.mounted) {
+                                setEditState(() => isUpdating = false);
+                              }
+                            }
+                          },
+                          child: isUpdating
+                              ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                              : Text("Save Changes", style: GoogleFonts.nunito(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white)),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                    ],
+                  ),
+                ),
+              );
+            }
         );
       },
     );

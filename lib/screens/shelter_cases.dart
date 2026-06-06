@@ -3,7 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ShelterCasesScreen extends StatefulWidget {
-  const ShelterCasesScreen({super.key});
+  final bool isReadOnly; // 🚨 Add this flag
+  const ShelterCasesScreen({super.key, this.isReadOnly = false});
 
   @override
   State<ShelterCasesScreen> createState() => _ShelterCasesScreenState();
@@ -314,34 +315,39 @@ class _ShelterCasesScreenState extends State<ShelterCasesScreen> {
           const SizedBox(height: 15),
 
           // BUTTONS
+
           if (isOpenPool)
-            InkWell(
-              onTap: _isClaiming ? null : () => _showClaimConfirmationDialog(caseData),
-              borderRadius: BorderRadius.circular(25),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                decoration: BoxDecoration(color: _primaryOrange, borderRadius: BorderRadius.circular(25)),
-                child: Center(
-                  child: _isClaiming
-                      ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : Text("Claim Case", style: GoogleFonts.nunito(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
+          // BUTTONS
+            if (!widget.isReadOnly) ...[ // 🚨 Only show buttons if NOT read-only
+              if (isOpenPool)
+                InkWell(
+                  onTap: _isClaiming ? null : () => _showClaimConfirmationDialog(caseData),
+                  borderRadius: BorderRadius.circular(25),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(color: _primaryOrange, borderRadius: BorderRadius.circular(25)),
+                    child: Center(
+                      child: _isClaiming
+                          ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                          : Text("Claim Case", style: GoogleFonts.nunito(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
+                    ),
+                  ),
+                )
+              else
+                InkWell(
+                  onTap: () => _showManageCaseDialog(caseData),
+                  borderRadius: BorderRadius.circular(25),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(color: _primaryGreen, borderRadius: BorderRadius.circular(25)),
+                    child: Center(
+                      child: Text("Update Status", style: GoogleFonts.nunito(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
+                    ),
+                  ),
                 ),
-              ),
-            )
-          else
-            InkWell(
-              onTap: () => _showManageCaseDialog(caseData),
-              borderRadius: BorderRadius.circular(25),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                decoration: BoxDecoration(color: _primaryGreen, borderRadius: BorderRadius.circular(25)),
-                child: Center(
-                  child: Text("Update Status", style: GoogleFonts.nunito(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
-                ),
-              ),
-            ),
+            ] // 🚨 Close the read-only check
         ],
       ),
     );

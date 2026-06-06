@@ -15,13 +15,36 @@ class _AdoptionScreenState extends State<AdoptionScreen> {
   // STATE VARIABLES
   // ==========================================
   bool _isLoading = true;
+  bool _isShelter = false;
   List<Map<String, dynamic>> _animals = [];
   String _selectedFilter = "All"; // "All", "Dog", "Cat", "Other"
 
   @override
   void initState() {
     super.initState();
+    _checkIfShelter(); // <--- Add this call
     _fetchAvailableAnimals();
+  }
+
+  Future<void> _checkIfShelter() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+
+    try {
+      final shelterData = await Supabase.instance.client
+          .from('shelters')
+          .select('id')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+      if (mounted && shelterData != null) {
+        setState(() {
+          _isShelter = true;
+        });
+      }
+    } catch (e) {
+      debugPrint("Error checking shelter status: $e");
+    }
   }
 
   // ==========================================
@@ -129,7 +152,7 @@ class _AdoptionScreenState extends State<AdoptionScreen> {
         backgroundColor: const Color(0xffffa94d),
         elevation: 4,
         child: const Icon(Icons.pets, color: Colors.white),
-      ),
+      ) ,
 
       body: SafeArea(
         child: RefreshIndicator(
@@ -159,10 +182,7 @@ class _AdoptionScreenState extends State<AdoptionScreen> {
                               ],
                             ),
                           ),
-                          Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 5)]), child: const Icon(Icons.favorite_border, color: Colors.black54, size: 20)),
-                          const SizedBox(width: 10),
-                          const CircleAvatar(radius: 18, backgroundImage: NetworkImage('https://i.pravatar.cc/100?img=5')),
-                        ],
+                         ],
                       ),
                       const SizedBox(height: 20),
 
@@ -529,8 +549,7 @@ class _AdoptionScreenState extends State<AdoptionScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // IMAGE
-            Stack(
-              children: [
+
                 Container(
                   height: 120,
                   decoration: BoxDecoration(
@@ -540,12 +559,6 @@ class _AdoptionScreenState extends State<AdoptionScreen> {
                   ),
                   child: imageUrl == null ? const Center(child: Icon(Icons.pets, color: Colors.grey)) : null,
                 ),
-                Positioned(
-                  top: 10, right: 10,
-                  child: Container(padding: const EdgeInsets.all(6), decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle), child: const Icon(Icons.favorite_border, size: 16, color: Colors.black54)),
-                )
-              ],
-            ),
 
             // DETAILS
             Expanded(

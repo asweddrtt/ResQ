@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:mobile_app/screens/shelter_cases.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 // Import your actual screens!
@@ -8,6 +9,8 @@ import 'package:mobile_app/screens/adoption_screen.dart';
 import 'package:mobile_app/screens/lost_found_screen.dart';
 import 'package:mobile_app/screens/profile_screen.dart';
 
+import 'all_clinics.dart';
+import 'all_shelters_screen.dart';
 import 'notifications_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -213,7 +216,15 @@ class _HomeScreenState extends State<HomeScreen> {
               else ...[
 
                 // --- SECTION 1: URGENT ALERTS ---
-                _buildSectionHeader("Urgent Alerts", "See all"),
+                _buildSectionHeader("Urgent Alerts", "See all",
+                    onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const ShelterCasesScreen(isReadOnly: true),
+                    ),
+                  );
+                }),
                 const SizedBox(height: 15),
                 if (_recentCases.isEmpty)
                   _buildEmptyState("No urgent cases nearby. You're all caught up!")
@@ -223,7 +234,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(height: 35),
 
                 // --- SECTION 2: LOCAL SHELTERS ---
-                _buildSectionHeader("Local Shelters", "View map"),
+                _buildSectionHeader("Local Shelters", "View all", onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const AllSheltersScreen(),
+                    ),
+                  );
+                }),
                 const SizedBox(height: 15),
                 if (_localShelters.isEmpty)
                   _buildEmptyState("No approved shelters in your area yet.")
@@ -245,7 +263,15 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(height: 35),
 
                 // --- SECTION 3: PARTNER CLINICS ---
-                _buildSectionHeader("Partner Clinics", "View all"),
+                // --- SECTION 3: PARTNER CLINICS ---
+                _buildSectionHeader("Partner Clinics", "View all", onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const AllClinicsScreen(),
+                    ),
+                  );
+                }),
                 const SizedBox(height: 15),
                 if (_partnerClinics.isEmpty)
                   _buildEmptyState("No verified clinics available right now.")
@@ -277,13 +303,20 @@ class _HomeScreenState extends State<HomeScreen> {
   // UI HELPER WIDGETS
   // ==========================================
 
-  Widget _buildSectionHeader(String title, String actionText) {
+  Widget _buildSectionHeader(String title, String actionText, {VoidCallback? onTap}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
         Text(title, style: GoogleFonts.nunito(fontWeight: FontWeight.w900, fontSize: 18, color: Colors.black87)),
-        Text(actionText, style: GoogleFonts.nunito(fontSize: 12, color: _primaryOrange, fontWeight: FontWeight.bold)),
+        InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(4),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+            child: Text(actionText, style: GoogleFonts.nunito(fontSize: 12, color: _primaryOrange, fontWeight: FontWeight.bold)),
+          ),
+        ),
       ],
     );
   }
@@ -303,7 +336,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
     Color badgeColor = severity == 'emergency' ? _dangerRed : (severity == 'low' ? _primaryGreen : const Color(0xffd97706));
 
-    return Container(
+    // 🚨 Wrap the Container in a GestureDetector
+    return GestureDetector(
+        onTap: () => _showCaseDetailsDialog(caseData),
+        child: Container(
       margin: const EdgeInsets.only(bottom: 15), padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.grey.shade200), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8)]),
       child: Row(
@@ -337,6 +373,7 @@ class _HomeScreenState extends State<HomeScreen> {
           )
         ],
       ),
+    )
     );
   }
 
@@ -354,6 +391,78 @@ class _HomeScreenState extends State<HomeScreen> {
           Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: GoogleFonts.nunito(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade500)),
         ],
       ),
+    );
+  }
+  // ==========================================
+  // UI: Show Case Details Dialog
+  // ==========================================
+  void _showCaseDetailsDialog(Map<String, dynamic> caseData) {
+    final animalType = caseData['animal_type'] ?? 'Animal';
+    final severity = caseData['severity'] ?? 'moderate';
+    final locationText = caseData['location_text'] ?? 'No exact location provided';
+    final description = caseData['description'] ?? 'No additional details provided.';
+    final timeAgo = _getTimeAgo(caseData['created_at']);
+
+    Color badgeColor = severity == 'emergency' ? _dangerRed : (severity == 'low' ? _primaryGreen : const Color(0xffd97706));
+
+    showDialog(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text("Case Details", style: GoogleFonts.nunito(fontWeight: FontWeight.w900, fontSize: 18)),
+                Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(color: badgeColor.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                    child: Text(severity.toUpperCase(), style: GoogleFonts.nunito(fontSize: 10, color: badgeColor, fontWeight: FontWeight.w900))
+                ),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text("Animal: $animalType", style: GoogleFonts.nunito(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.black87)),
+                  Text("Reported: $timeAgo", style: GoogleFonts.nunito(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 15),
+
+                  // Location
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.location_on_outlined, size: 18, color: Colors.redAccent),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(locationText, style: GoogleFonts.nunito(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.black87)),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 15),
+
+                  // Description
+                  Text("Description", style: GoogleFonts.nunito(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+                  const SizedBox(height: 4),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade200)),
+                    child: Text(description, style: GoogleFonts.nunito(fontSize: 13, color: Colors.grey.shade700, fontWeight: FontWeight.w600)),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text("Close", style: GoogleFonts.nunito(color: _primaryGreen, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          );
+        }
     );
   }
 }

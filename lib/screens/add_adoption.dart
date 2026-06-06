@@ -153,10 +153,6 @@ class _AddAdoptionScreenState extends State<AddAdoptionScreen> {
       final user = supabase.auth.currentUser;
       if (user == null) throw Exception("User not logged in");
 
-      final shelterData = await supabase.from('shelters').select('id').eq('user_id', user.id).maybeSingle();
-      if (shelterData == null) throw Exception("Shelter profile not found for this user.");
-      final String shelterId = shelterData['id'];
-
       final speciesMap = ['dog', 'cat', 'other'];
       final genderMap = ['male', 'female'];
       final sizeMap = ['small', 'medium', 'large'];
@@ -164,7 +160,7 @@ class _AddAdoptionScreenState extends State<AddAdoptionScreen> {
       final energyMap = ['low', 'medium', 'high'];
 
       final animalResponse = await supabase.from('animals').insert({
-        'shelter_id': shelterId,
+        'owner_user_id': user.id, // Fixed the column name!
         'name': _nameCtrl.text.trim().isEmpty ? 'Buddy' : _nameCtrl.text.trim(),
         'species': speciesMap[_selectedSpecies],
         'breed': _breedCtrl.text.trim(),

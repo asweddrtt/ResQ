@@ -45,6 +45,7 @@ dependencies:
   http: ^1.6.0
   image_picker: ^1.2.2
   flutter_stripe: ^13.0.0
+  flutter_launcher_icons: ^0.14.4
 
 dev_dependencies:
   flutter_test:
@@ -98,3 +99,9 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+flutter_launcher_icons:
+  android: true
+  image_path: "assets/images/logo.PNG" # Add this line for the fallback
+
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/images/logo.PNG"
