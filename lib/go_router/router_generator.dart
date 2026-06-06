@@ -11,6 +11,7 @@ import 'package:mobile_app/screens/shelter_reg.dart';
 import 'package:mobile_app/screens/sign_in.dart';
 import 'package:mobile_app/screens/register_screen.dart';
 import 'package:mobile_app/screens/role_selecting_screen.dart';
+import 'package:mobile_app/screens/support_chat_screen.dart';
 
 import '../screens/add_adoption.dart';
 import '../screens/chat_room.dart';
@@ -82,6 +83,11 @@ class RouterGenerationConfig {
         path: AppRoutes.home,
         name: '/home',
         builder: (context, state) => HomeScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.supportChat,
+        name: '/supportChat',
+        builder: (context, state) => SupportChatScreen(),
       ),
       GoRoute(
         path: AppRoutes.shelterReg,

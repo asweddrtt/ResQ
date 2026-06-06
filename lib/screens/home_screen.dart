@@ -8,6 +8,8 @@ import 'package:mobile_app/screens/adoption_screen.dart';
 import 'package:mobile_app/screens/lost_found_screen.dart';
 import 'package:mobile_app/screens/profile_screen.dart';
 
+import 'notifications_screen.dart';
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -168,8 +170,14 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         actions: [
           IconButton(
-            icon: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, border: Border.all(color: Colors.grey.shade300)), child: const Icon(Icons.notifications_none_outlined, color: Colors.black87, size: 20)),
-            onPressed: () {},
+            icon: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, border: Border.all(color: Colors.grey.shade300)),
+                child: const Icon(Icons.notifications_none_outlined, color: Colors.black87, size: 20)),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const NotificationsScreen()),
+              );
+            },
           ),
           const SizedBox(width: 10),
         ],

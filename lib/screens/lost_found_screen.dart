@@ -3,6 +3,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'lost_found_report_screen.dart';
 
 class LostFoundScreen extends StatefulWidget {
   const LostFoundScreen({super.key});
@@ -16,16 +17,24 @@ class _LostFoundScreenState extends State<LostFoundScreen> {
   List<Map<String, dynamic>> _reports = [];
 
   final MapController _mapController = MapController();
-  final LatLng _defaultLocation = const LatLng(30.0074, 31.4913); // Default map location
-  
-  // Active Filter
-  String _activeFilter = 'Dog';
-  final List<String> _filters = ['Dog', 'Cat', 'Small pets', 'Recently seen', 'Reward'];
+  final LatLng _defaultLocation = const LatLng(30.0074, 31.4913);
+
+  // Active filter — matches animal_type or special keys
+  String _activeFilter = 'All';
+  final List<String> _filters = ['All', 'Dog', 'Cat', 'Bird', 'Lost', 'Found'];
 
   @override
   void initState() {
     super.initState();
     _fetchReports();
+  }
+
+  // Filter helper
+  List<Map<String, dynamic>> get _filteredReports {
+    if (_activeFilter == 'All') return _reports;
+    if (_activeFilter == 'Lost') return _reports.where((r) => r['type'] == 'lost').toList();
+    if (_activeFilter == 'Found') return _reports.where((r) => r['type'] == 'found').toList();
+    return _reports.where((r) => (r['animal_type'] ?? '').toString().toLowerCase() == _activeFilter.toLowerCase()).toList();
   }
 
   Future<void> _fetchReports() async {
@@ -127,42 +136,22 @@ class _LostFoundScreenState extends State<LostFoundScreen> {
                             ],
                           ),
                         ),
-                        // Notification Bell
-                        Stack(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 5),
-                                ],
-                              ),
-                              child: const Icon(Icons.notifications_none_outlined, color: Colors.black54, size: 20),
-                            ),
-                            Positioned(
-                              top: 0,
-                              right: 0,
-                              child: Container(
-                                padding: const EdgeInsets.all(4),
-                                decoration: const BoxDecoration(
-                                  color: Color(0xffffa94d),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Text(
-                                  "3",
-                                  style: GoogleFonts.nunito(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white),
-                                ),
-                              ),
-                            )
-                          ],
+                        // Notification Bell (simple - no fake count)
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 5)],
+                          ),
+                          child: const Icon(Icons.notifications_none_outlined, color: Colors.black54, size: 20),
                         ),
                         const SizedBox(width: 10),
                         // Profile Avatar
                         const CircleAvatar(
                           radius: 18,
-                          backgroundImage: NetworkImage('https://i.pravatar.cc/100?img=5'), // Placeholder
+                          backgroundColor: Color(0xff5bb381),
+                          child: Icon(Icons.person, color: Colors.white, size: 18),
                         ),
                       ],
                     ),
@@ -252,6 +241,25 @@ class _LostFoundScreenState extends State<LostFoundScreen> {
                                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                                 userAgentPackageName: 'com.yourcompany.resq',
                               ),
+                              MarkerLayer(
+                                markers: _reports
+                                    .where((r) => r['location_lat'] != null && r['location_lng'] != null)
+                                    .map((r) {
+                                  final isLost = r['type'] == 'lost';
+                                  return Marker(
+                                    point: LatLng(
+                                      (r['location_lat'] as num).toDouble(),
+                                      (r['location_lng'] as num).toDouble(),
+                                    ),
+                                    width: 28, height: 28,
+                                    child: Icon(
+                                      Icons.location_on,
+                                      color: isLost ? Colors.red : const Color(0xff5bb381),
+                                      size: 28,
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
                             ],
                           ),
                           // "Open Map" Overlay Button
@@ -313,14 +321,15 @@ class _LostFoundScreenState extends State<LostFoundScreen> {
                               margin: const EdgeInsets.only(right: 10),
                               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
                               decoration: BoxDecoration(
-                                color: isActive ? const Color(0xffffa94d) : const Color(0xffffa94d).withOpacity(0.5),
+                                color: isActive ? const Color(0xffffa94d) : Colors.white,
                                 borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: isActive ? const Color(0xffffa94d) : Colors.grey.shade300),
                               ),
                               child: Text(
                                 filter,
                                 style: GoogleFonts.nunito(
                                   fontWeight: FontWeight.bold,
-                                  color: Colors.black87,
+                                  color: isActive ? Colors.black87 : Colors.grey.shade600,
                                 ),
                               ),
                             ),
@@ -333,20 +342,25 @@ class _LostFoundScreenState extends State<LostFoundScreen> {
                     // ==========================================
                     // 5. RECENTLY REPORTED LIST
                     // ==========================================
-                    Text(
-                      "Recently reported",
-                      style: GoogleFonts.nunito(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.black87,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          "Recently reported",
+                          style: GoogleFonts.nunito(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.black87),
+                        ),
+                        Text(
+                          '${_filteredReports.length} reports',
+                          style: GoogleFonts.nunito(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w700),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 15),
 
                     // List display logic
                     if (_isLoading)
                       const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator()))
-                    else if (_reports.isEmpty)
+                    else if (_filteredReports.isEmpty)
                       Center(
                         child: Padding(
                           padding: const EdgeInsets.symmetric(vertical: 40.0),
@@ -363,11 +377,11 @@ class _LostFoundScreenState extends State<LostFoundScreen> {
                       )
                     else
                       ListView.builder(
-                        physics: const NeverScrollableScrollPhysics(), // Important when inside SingleChildScrollView
+                        physics: const NeverScrollableScrollPhysics(),
                         shrinkWrap: true,
-                        itemCount: _reports.length,
+                        itemCount: _filteredReports.length,
                         itemBuilder: (context, index) {
-                          final report = _reports[index];
+                          final report = _filteredReports[index];
                           
                           // Handle missing fields (since DB schema only has limited columns, we use fallbacks)
                           final animalType = report['animal_type'] ?? "Unknown Animal";
@@ -521,8 +535,12 @@ class _LostFoundScreenState extends State<LostFoundScreen> {
                 ]
               ),
               child: GestureDetector(
-                onTap: () {
-                  // ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Navigate to report creation')));
+                onTap: () async {
+                  final result = await Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const LostFoundReportScreen()),
+                  );
+                  if (result == true) _fetchReports();
                 },
                 child: Container(
                   width: double.infinity,

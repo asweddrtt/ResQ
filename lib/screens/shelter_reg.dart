@@ -146,23 +146,28 @@ class _ShelterRegistrationScreenState extends State<ShelterRegistrationScreen> {
 
     try {
       final supabase = Supabase.instance.client;
-      
+
       // 1. Sign up the user
       final authResponse = await supabase.auth.signUp(
         email: email,
         password: password,
         data: {'role': 'shelter'},
       );
-      
+
       final user = authResponse.user;
       if (user == null) {
         throw Exception("Authentication failed. User is null.");
       }
 
-      await supabase.from('users').update({'role': 'shelter'}).eq('id', user.id);
+      // UPDATE the automatically created row in the users table
+      await supabase.from('users').update({
+        'full_name': name,
+        'phone': _phoneController.text.trim(),
+        'role': 'shelter',
+      }).eq('id', user.id);
 
-      // 2. Insert shelter details
-      await supabase.from('shelters').insert({
+      // 2. Insert shelter details AND fetch the newly generated Shelter ID
+      final shelterResponse = await supabase.from('shelters').insert({
         'user_id': user.id,
         'name': name,
         'phone': _phoneController.text.trim(),
@@ -171,8 +176,17 @@ class _ShelterRegistrationScreenState extends State<ShelterRegistrationScreen> {
         'city': _cityController.text.trim(),
         'description': _descController.text.trim(),
         'status': 'pending',
+      }).select().single();
+
+      final String shelterId = shelterResponse['id'];
+
+      // 3. Insert ONLY the required fields into shelter_verifications
+      await supabase.from('shelter_verifications').insert({
+        'shelter_id': shelterId,
+        'status': 'pending',
       });
 
+      // (Proceed to your existing "Upload verification document" logic...)
       // 3. Upload verification document if selected
       if (_selectedFileBytes != null && _selectedFileExt != null) {
         final contentType = _resolveContentType(_selectedFileExt!);

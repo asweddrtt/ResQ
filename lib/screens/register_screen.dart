@@ -14,14 +14,24 @@ class RegisterScreen extends StatefulWidget {
 
 class _RegisterScreenState extends State<RegisterScreen> {
   // Controllers
+
+  final TextEditingController _genderController = TextEditingController();
   final TextEditingController _firstNameController = TextEditingController();
   final TextEditingController _lastNameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
+
+  final TextEditingController _phonenumberController = TextEditingController();
+
   final TextEditingController _passController = TextEditingController();
   final TextEditingController _confirmPassController = TextEditingController();
 
+  final TextEditingController _nationalidContoller = TextEditingController();
+
+
   // State Variables
   bool _isPasswordVisible = false;
+  String? _selectedGender;
+  final List<String> _genderOptions = ['male', 'female', 'prefer not to say'];
   bool _hasCapital = false;
   bool _hasNumber = false;
   bool _hasSpecial = false;
@@ -53,8 +63,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _signUp() async {
-    if (!_passwordsMatch || _emailController.text.isEmpty) return;
+    // 1. Guard clause: Stop and return EARLY if things are missing/invalid
+    if (!_passwordsMatch || _emailController.text.isEmpty || _genderController.text.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please fill in all required fields, including Gender.')),
+        );
+      }
+      return; // <-- This stops the rest of the code from running!
+    }
 
+    // 2. If it makes it past the return, we know the fields are safe to use
     setState(() {
       _isLoading = true;
     });
@@ -68,14 +87,31 @@ class _RegisterScreenState extends State<RegisterScreen> {
         data: {
           'full_name': '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}',
           'role': 'volunteer',
+          'phone': _phonenumberController.text.trim(),
         },
       );
 
       final user = res.user;
 
       if (user != null) {
+        // Convert the UI string to lowercase for the Postgres enum
+        String formattedGender = _genderController.text.trim().toLowerCase();
+
+        if (formattedGender == 'prefer not to say') {
+          formattedGender = 'prefer_not_to_say';
+        }
+
+        await supabase.from("users").update(
+            {
+              'phone': _phonenumberController.text.trim(),
+              'gender': formattedGender,
+            }).eq('id', user.id);
+      }
+
+      if (user != null) {
         await supabase.from('user_verifications').insert({
           'user_id': user.id,
+          'id_number': _nationalidContoller.text.trim(),
           'doc_type': 'national_id',
           'status': 'pending',
         });
@@ -161,7 +197,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                       // Last Name
                       _buildLabel("Last name"),
+
+                      // Gender
+
+
                       _buildTextField(hint: "Doe", icon: Icons.person_outline, controller: _lastNameController),
+                      SizedBox(height: 15.h),
+                      _buildLabel("Phone number"),
+                      _buildTextField(hint: "0123456789", icon: Icons.phone_android, controller: _phonenumberController),
+                      SizedBox(height: 15.h),
+                      _buildLabel("National ID"),
+                      _buildTextField(hint: "01234567891234", icon: Icons.perm_identity, controller: _nationalidContoller),
                       SizedBox(height: 15.h),
 
                       // Email
@@ -211,6 +257,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         Text("Passwords match.",
                             style: GoogleFonts.nunito(fontSize: 10.sp, color: Colors.blue[300])),
 
+                      SizedBox(height: 15.h),
+                      _buildLabel("Gender"),
+                      _buildGenderDropdown(),
                       SizedBox(height: 20.h),
 
                       // Terms Text
@@ -391,6 +440,40 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+  Widget _buildGenderDropdown() {
+    return Container(
+      height: 45.h,
+      padding: EdgeInsets.symmetric(horizontal: 15.w),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10.r),
+        border: Border.all(color: Colors.grey.withOpacity(0.3)),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          isExpanded: true,
+          hint: Text(
+            "Select Gender",
+            style: GoogleFonts.nunito(color: Colors.grey[400], fontSize: 14.sp),
+          ),
+          value: _selectedGender,
+          icon: Icon(Icons.arrow_drop_down, color: Colors.grey[400]),
+          items: _genderOptions.map((String value) {
+            return DropdownMenuItem<String>(
+              value: value,
+              child: Text(value, style: GoogleFonts.nunito(fontSize: 14.sp)),
+            );
+          }).toList(),
+          onChanged: (newValue) {
+            setState(() {
+              _selectedGender = newValue;
+              _genderController.text = newValue ?? '';
+            });
+          },
+        ),
       ),
     );
   }

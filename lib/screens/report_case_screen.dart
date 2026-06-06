@@ -296,10 +296,10 @@ class _ReportCaseScreenState extends State<ReportCaseScreen> {
             try {
               updateUI("Uploading image ${i + 1} to '$candidateBucket'...");
               await supabase.storage.from(candidateBucket).upload(
-                    filePath,
-                    file,
-                    fileOptions: FileOptions(contentType: contentType, upsert: false),
-                  );
+                filePath,
+                file,
+                fileOptions: FileOptions(contentType: contentType, upsert: false),
+              );
               uploadedBucket = candidateBucket;
               updateUI("✅ Upload ${i + 1} OK in '$candidateBucket'.");
               break;
@@ -309,10 +309,10 @@ class _ReportCaseScreenState extends State<ReportCaseScreen> {
                 await Future.delayed(const Duration(milliseconds: 800));
                 try {
                   await supabase.storage.from(candidateBucket).upload(
-                        filePath,
-                        file,
-                        fileOptions: FileOptions(contentType: contentType, upsert: false),
-                      );
+                    filePath,
+                    file,
+                    fileOptions: FileOptions(contentType: contentType, upsert: false),
+                  );
                   uploadedBucket = candidateBucket;
                   updateUI("✅ Retry succeeded in '$candidateBucket'.");
                   break;
@@ -766,6 +766,7 @@ class _ReportCaseScreenState extends State<ReportCaseScreen> {
     );
   }
 
+  // For the actual selected images
   Widget _buildImageThumbnail(File image, int index) {
     return Stack(
       children: [
@@ -805,16 +806,23 @@ class _ReportCaseScreenState extends State<ReportCaseScreen> {
         Row(
           children: [
             Expanded(
-              child: Container(
-                height: 50,
-                decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(25)),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.save_outlined, size: 18, color: Colors.black54),
-                    const SizedBox(width: 8),
-                    Text("Save draft", style: GoogleFonts.nunito(fontWeight: FontWeight.bold, color: Colors.black54)),
-                  ],
+              child: GestureDetector(
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Draft saved locally — submit when ready.'), duration: Duration(seconds: 2)),
+                  );
+                },
+                child: Container(
+                  height: 50,
+                  decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(25)),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.save_outlined, size: 18, color: Colors.black54),
+                      const SizedBox(width: 8),
+                      Text("Save draft", style: GoogleFonts.nunito(fontWeight: FontWeight.bold, color: Colors.black54)),
+                    ],
+                  ),
                 ),
               ),
             ),

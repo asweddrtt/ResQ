@@ -175,6 +175,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _buildMenuTile(icon: Icons.inbox_outlined, title: "Messages",
                   onTap: () => context.push(AppRoutes.messages),
                   subtitle: "Chats with rescuers & vets", trailingWidget: _buildStatusPill("Inbox", const Color(0xffffa94d), Colors.black87)),
+              _buildMenuTile(icon: Icons.support_agent, title: "Contact Support",
+                  onTap: () => context.push(AppRoutes.supportChat),
+                  subtitle: "contact customer support", trailingWidget: _buildStatusPill("Inbox",  Colors.green, Colors.black87)),
               const SizedBox(height: 25),
 
               // ==========================================
@@ -266,8 +269,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
   // ==========================================
   void _showDonationSheet() {
     final TextEditingController amountController = TextEditingController();
-    String? selectedOrg;
+    String? selectedCaseId; // Changed from selectedOrg
     bool isProcessing = false;
+
+    // Fetch cases instead of shelters/clinics
+    Future<List<Map<String, dynamic>>> fetchCases() async {
+      final supabase = Supabase.instance.client;
+      // You can add a filter here like .eq('status', 'new') if you only want open cases
+      final response = await supabase.from('cases').select('id, animal_type, description');
+      return List<Map<String, dynamic>>.from(response);
+    }
+
+    final Future<List<Map<String, dynamic>>> casesFuture = fetchCases();
 
     // Helper future to fetch all organizations
     Future<List<String>> fetchOrganizations() async {
@@ -335,17 +348,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                       const SizedBox(height: 20),
 
-                      // ORGANIZATION DROPDOWN
-                      Text("Direct my donation to (Optional)", style: GoogleFonts.nunito(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.black87)),
+                      // CASE DROPDOWN
+                      Text("Direct my donation to a case (Optional)", style: GoogleFonts.nunito(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.black87)),
                       const SizedBox(height: 8),
-                      FutureBuilder<List<String>>(
-                        future: orgsFuture, // 🚨 using the stored future here
+                      FutureBuilder<List<Map<String, dynamic>>>(
+                        future: casesFuture,
                         builder: (context, snapshot) {
                           if (snapshot.connectionState == ConnectionState.waiting) {
                             return const Center(child: CircularProgressIndicator(color: Color(0xff5bb381)));
                           }
 
-                          List<String> orgList = snapshot.data ?? [];
+                          List<Map<String, dynamic>> casesList = snapshot.data ?? [];
                           return DropdownButtonFormField<String>(
                             decoration: InputDecoration(
                               filled: true,
@@ -353,18 +366,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
                             ),
                             hint: Text("General Platform Fund", style: GoogleFonts.nunito(color: Colors.grey.shade500)),
-                            value: selectedOrg,
+                            value: selectedCaseId,
                             isExpanded: true,
-                            items: orgList.map((String org) {
+                            items: casesList.map((caseData) {
+                              // Create a label using the animal type and description
+                              final animal = caseData['animal_type'] ?? 'Unknown Animal';
+                              final desc = caseData['description'] ?? 'No description';
+
                               return DropdownMenuItem<String>(
-                                value: org,
-                                child: Text(org, style: GoogleFonts.nunito(fontWeight: FontWeight.w700)),
+                                value: caseData['id'].toString(), // Use the case ID as the actual value
+                                child: Text(
+                                  "$animal - $desc",
+                                  style: GoogleFonts.nunito(fontWeight: FontWeight.w700),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               );
                             }).toList(),
-                            onChanged: (val) => setSheetState(() => selectedOrg = val),
+                            onChanged: (val) => setSheetState(() => selectedCaseId = val),
                           );
                         },
                       ),
+
 
                       const Spacer(),
 
@@ -421,13 +444,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               debugPrint("5. Payment successful! Saving to database...");
                               final user = Supabase.instance.client.auth.currentUser;
                               await Supabase.instance.client.from('donations').insert({
-                                'donor_user_id': user?.id,
+                                'donor_user_id': user?.id, // Captures the current user
+                                'case_id': selectedCaseId, // Maps to the selected dropdown value
                                 'amount': amount,
                                 'status': 'completed',
                                 'payment_method': 'stripe',
                                 'transaction_id': transactionId,
                                 'currency': 'EGP',
-                                'notes': selectedOrg != null ? 'Directed to: $selectedOrg' : 'General Platform Fund',
+                                'notes': selectedCaseId != null ? 'Directed to specific case' : 'General Platform Fund',
+
                               }).timeout(const Duration(seconds: 10));
 
                               if (sheetContext.mounted) {
@@ -437,14 +462,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 );
                               }
                             } on StripeException catch (e) {
-                              debugPrint("Stripe Exception: ${e.error.localizedMessage}");
+                              // 🚨 ADDED: More detailed Stripe logging
+                              debugPrint("💳 --- STRIPE ERROR ---");
+                              debugPrint("Message: ${e.error.localizedMessage}");
+                              debugPrint("Code: ${e.error.code}");
+                              debugPrint("Stripe Error Details: ${e.error}");
+                              debugPrint("------------------------");
+
                               if (sheetContext.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(content: Text("Payment cancelled or failed."), backgroundColor: Colors.orange)
                                 );
                               }
-                            } catch (e) {
-                              debugPrint("General Error caught: $e");
+                            } catch (e, stackTrace) {
+                              // 🚨 ADDED: StackTrace to see EXACTLY where the code broke
+                              debugPrint("❌ --- GENERAL ERROR ---");
+                              debugPrint("Error type: ${e.runtimeType}");
+                              debugPrint("Error message: $e");
+                              debugPrint("StackTrace:\n$stackTrace");
+                              debugPrint("------------------------");
+
                               if (sheetContext.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(content: Text("Error: $e"), backgroundColor: Colors.redAccent)

@@ -142,27 +142,35 @@ class _ClinicReg extends State<ClinicReg> {
       final authResponse = await supabase.auth.signUp(
         email: email,
         password: password,
-        data: {
-          'role': 'clinic',
-          'clinic_name': name,
-          'phone': _phoneController.text.trim(),
-          'license_number': _licenseController.text.trim(),
-          'city': _cityController.text.trim(),
-        },
+        data: {'role': 'clinic'},
       );
 
       final user = authResponse.user;
       if (user == null) throw Exception("Authentication failed. User is null.");
 
-      await supabase.from('users').update({'role': 'clinic'}).eq('id', user.id);
+      // UPDATE the automatically created row instead of inserting a new one
+      await supabase.from('users').update({
+        'full_name': _nameController.text.trim(), // Note: Make sure to use .text.trim() here!
+        'phone': _phoneController.text.trim(),
+        'role': 'clinic',
+      }).eq('id', user.id);
 
-      // 2. Insert ONLY the verification status into clinic_verifications
+      // 2. Insert clinic details into the 'clinics' table AND fetch the newly generated Clinic ID
+      final clinicResponse = await supabase.from('clinics').insert({
+        'user_id': user.id,
+        'name': name,
+        'phone': _phoneController.text.trim(),
+        'license_number': _licenseController.text.trim(),
+        'city': _cityController.text.trim(),
+      }).select().single();
+
+      final String clinicId = clinicResponse['id'];
+
+      // 3. Insert ONLY the required fields into clinic_verifications
       await supabase.from('clinic_verifications').insert({
-        'clinic_id': user.id,
+        'clinic_id': clinicId,
         'status': 'pending',
       });
-
-      // (Proceed to Step 4. Robust Document Upload...)
 
       // 4. Robust Document Upload
       if (_selectedFilePath != null) {

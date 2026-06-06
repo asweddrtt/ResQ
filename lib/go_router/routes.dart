@@ -10,6 +10,7 @@ class AppRoutes {
   static const String emailVer = '/email_ver';
 
   static const String identityVer = '/identity_ver';
+  static const String supportChat = '/supportChat';
 
   static const String reportCase  = '/report_case';
 
