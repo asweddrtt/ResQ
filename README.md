@@ -1,16 +1,14 @@
-# mobile_app
+ReSQ 🐾
 
-A new Flutter project.
+ReSQ is a university graduation project focused on helping rescue animals from the streets.
 
-## Getting Started
+The app connects animal rescuers, volunteers, shelters, and veterinary clinics to make reporting, rescuing, and caring for animals easier and more organized.
 
-This project is a starting point for a Flutter application.
+Tech Stack
 
-A few resources to get you started if this is your first Flutter project:
+* Flutter & Dart
+* Supabase
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+Development
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+I developed the entire application and codebase, including its features, architecture, and integrations. Claude Code was used as a development assistant for code refactoring and adding comments/documentation.
