@@ -1,4 +1,4 @@
-ReSQ 🐾
+ReSQ
 
 ReSQ is a university graduation project focused on helping rescue animals from the streets.
 
