@@ -187,27 +187,6 @@ class _AdoptionScreenState extends State<AdoptionScreen> {
                       const SizedBox(height: 20),
 
                       // ==========================================
-                      // SEARCH BAR
-                      // ==========================================
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Container(
-                              height: 48, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(25), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 5)]),
-                              child: TextField(decoration: InputDecoration(hintText: "Search pets, breeds, shelters", hintStyle: GoogleFonts.nunito(color: Colors.grey[400], fontSize: 14), prefixIcon: Icon(Icons.search, color: Colors.grey[400]), border: InputBorder.none, contentPadding: const EdgeInsets.symmetric(vertical: 15))),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Container(
-                            height: 48, padding: const EdgeInsets.symmetric(horizontal: 16),
-                            decoration: BoxDecoration(color: const Color(0xffffa94d), borderRadius: BorderRadius.circular(25), boxShadow: [BoxShadow(color: const Color(0xffffa94d).withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 3))]),
-                            child: Row(children: [const Icon(Icons.location_on_outlined, color: Colors.black87, size: 18), const SizedBox(width: 4), Text("Nearby", style: GoogleFonts.nunito(fontWeight: FontWeight.bold, color: Colors.black87, fontSize: 14))]),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
-
-                      // ==========================================
                       // FILTER CHIPS
                       // ==========================================
                       SingleChildScrollView(
@@ -327,7 +306,9 @@ class _AdoptionScreenState extends State<AdoptionScreen> {
     // 🚨 Convert the photo paths to actual URLs for the slider
     final List photosData = animal['animal_photos'] ?? [];
     final List<String> photoUrls = photosData.map((p) {
-      return Supabase.instance.client.storage.from(p['bucket']).getPublicUrl(p['path']);
+      String rawUrl = Supabase.instance.client.storage.from(p['bucket']).getPublicUrl(p['path']);
+      // Force correct routing
+      return rawUrl.replaceFirst('.storage.supabase.co/v1/', '.supabase.co/storage/v1/');
     }).toList();
 
     showDialog(
@@ -537,7 +518,9 @@ class _AdoptionScreenState extends State<AdoptionScreen> {
     final List photos = animal['animal_photos'] ?? [];
     if (photos.isNotEmpty) {
       final coverPhoto = photos.firstWhere((p) => p['is_cover'] == true, orElse: () => photos.first);
-      imageUrl = Supabase.instance.client.storage.from(coverPhoto['bucket']).getPublicUrl(coverPhoto['path']);
+      String rawUrl = Supabase.instance.client.storage.from(coverPhoto['bucket']).getPublicUrl(coverPhoto['path']);
+      // Force correct routing
+      imageUrl = rawUrl.replaceFirst('.storage.supabase.co/v1/', '.supabase.co/storage/v1/');
     }
 
     return GestureDetector(
@@ -548,17 +531,23 @@ class _AdoptionScreenState extends State<AdoptionScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // IMAGE
-
-                Container(
-                  height: 120,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade200,
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-                    image: imageUrl != null ? DecorationImage(image: NetworkImage(imageUrl), fit: BoxFit.cover) : null,
-                  ),
-                  child: imageUrl == null ? const Center(child: Icon(Icons.pets, color: Colors.grey)) : null,
-                ),
+            // IMAGE (Updated to handle 404s safely like we did on the Lost & Found screen)
+            Container(
+              height: 120,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade200,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              clipBehavior: Clip.hardEdge,
+              child: imageUrl != null
+                  ? Image.network(
+                imageUrl,
+                fit: BoxFit.contain,
+                errorBuilder: (context, error, stackTrace) => const Center(child: Icon(Icons.broken_image, color: Colors.grey, size: 40)),
+              )
+                  : const Center(child: Icon(Icons.pets, color: Colors.grey, size: 40)),
+            ),
 
             // DETAILS
             Expanded(

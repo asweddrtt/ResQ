@@ -318,16 +318,44 @@ class _ClinicCasesScreenState extends State<ClinicCasesScreen> {
     );
   }
 
+  // ==========================================
+  // LOGIC: Fetch Photos for Dialog & Cards
+  // ==========================================
+  Future<List<String>> _fetchCasePhotos(String caseId) async {
+    try {
+      final data = await Supabase.instance.client
+          .from('case_photos')
+          .select('bucket, path')
+          .eq('case_id', caseId);
+
+      List<String> urls = [];
+      for (var row in data) {
+        final bucket = row['bucket'];
+        final path = row['path'];
+        String rawUrl = Supabase.instance.client.storage.from(bucket).getPublicUrl(path);
+
+        // 🚨 APPLY OUR URL ROUTING FIX
+        String fixedUrl = rawUrl.replaceFirst('.storage.supabase.co/v1/', '.supabase.co/storage/v1/');
+        urls.add(fixedUrl);
+      }
+      return urls;
+    } catch (e) {
+      debugPrint("Error fetching photos: $e");
+      return [];
+    }
+  }
+
   Widget _buildCaseCard(Map<String, dynamic> caseData, {required bool isOpenPool}) {
     final String id = caseData['id'] ?? '';
     final String shortId = "CASE-${id.length > 4 ? id.substring(0, 4).toUpperCase() : id}";
     final String animalType = caseData['animal_type'] ?? 'Unknown';
     final String severity = caseData['severity'] ?? 'moderate';
-    final String status = caseData['status'] ?? 'new'; // 🚨 Grab the status!
-    final String description = caseData['description'] ?? 'No description provided.'; // 🚨 Grab the description!
+    final String status = caseData['status'] ?? 'new';
+    final String description = caseData['description'] ?? 'No description provided.';
     final String timeAgo = _getTimeAgo(caseData['claimed_at'] ?? caseData['created_at']);
 
     Color severityColor = severity == 'emergency' ? _dangerRed : (severity == 'low' ? Colors.green : const Color(0xffd97706));
+
     return Container(
       margin: const EdgeInsets.only(bottom: 15), padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -337,17 +365,61 @@ class _ClinicCasesScreenState extends State<ClinicCasesScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // 🚨 HEADER SECTION WITH IMAGE
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text("Reported $animalType", style: GoogleFonts.nunito(fontSize: 16, fontWeight: FontWeight.w900, color: _textDark)),
-              _buildBadge(severity.toUpperCase(), severityColor),
+              // 1. DYNAMIC IMAGE (Using FutureBuilder)
+              FutureBuilder<List<String>>(
+                  future: _fetchCasePhotos(id),
+                  builder: (context, snapshot) {
+                    String? imageUrl;
+                    if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+                      imageUrl = snapshot.data!.first; // Grab the first photo
+                    }
+
+                    return Container(
+                      height: 60,
+                      width: 60,
+                      margin: const EdgeInsets.only(right: 15),
+                      decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(15)),
+                      clipBehavior: Clip.hardEdge,
+                      child: imageUrl != null
+                          ? Image.network(
+                        imageUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => Icon(Icons.broken_image, color: Colors.grey.shade400),
+                      )
+                          : (snapshot.connectionState == ConnectionState.waiting
+                          ? const Center(child: SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2)))
+                          : Icon(Icons.pets, color: Colors.grey.shade400)),
+                    );
+                  }
+              ),
+
+              // 2. TEXT DETAILS
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text("Reported $animalType", style: GoogleFonts.nunito(fontSize: 16, fontWeight: FontWeight.w900, color: _textDark)),
+                        _buildBadge(severity.toUpperCase(), severityColor),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(shortId, style: GoogleFonts.nunito(fontSize: 12, fontWeight: FontWeight.w600, color: _textLight)),
+                    Text("Shelter Secured: $timeAgo", style: GoogleFonts.nunito(fontSize: 12, fontWeight: FontWeight.w600, color: _textLight)),
+                  ],
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 4),
-          Text(shortId, style: GoogleFonts.nunito(fontSize: 12, fontWeight: FontWeight.w600, color: _textLight)),
-          Text("Shelter Secured: $timeAgo", style: GoogleFonts.nunito(fontSize: 12, fontWeight: FontWeight.w600, color: _textLight)),
-          // 🚨 THE APPEND-ONLY DESCRIPTION BOX
+          const SizedBox(height: 15),
+
+          // 🚨 EXISTING: APPEND-ONLY DESCRIPTION BOX
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(12),
@@ -359,7 +431,6 @@ class _ClinicCasesScreenState extends State<ClinicCasesScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text("Case Notes", style: GoogleFonts.nunito(fontSize: 12, fontWeight: FontWeight.w800, color: _textDark)),
-                    // 🚨 Changed to an "Add Comment" icon pointing to the new dialog
                     if (!isOpenPool && status != 'resolved' && status != 'closed')
                       GestureDetector(
                         onTap: () => _showAddNoteDialog(id, description),
@@ -376,6 +447,8 @@ class _ClinicCasesScreenState extends State<ClinicCasesScreen> {
             ),
           ),
           const SizedBox(height: 15),
+
+          // BUTTONS
           if (isOpenPool)
             InkWell(
               onTap: _isClaiming ? null : () => _acceptCase(id),
@@ -406,7 +479,6 @@ class _ClinicCasesScreenState extends State<ClinicCasesScreen> {
       ),
     );
   }
-
 
 // ==========================================
   // LOGIC: Append New Note to Description

@@ -46,12 +46,16 @@ class _ShelterCasesScreenState extends State<ShelterCasesScreen> {
     setState(() => _isClaiming = true);
 
     try {
+      // OPTIONAL: If you have a way to check if the current user is a shelter or standard user,
+      // set this dynamically. Defaulting to 'user' since we are allowing users to claim.
+      String claimerType = 'user'; // Change this logic based on your user roles if needed!
+
       final response = await Supabase.instance.client
           .from('cases')
           .update({
         'status': 'assigned',
         'claimed_by_id': _myShelterId,
-        'claimed_by_type': 'shelter',
+        'claimed_by_type': claimerType, // <--- UPDATE THIS LINE
         'claimed_at': DateTime.now().toUtc().toIso8601String(),
       })
           .eq('id', caseId)
@@ -241,84 +245,131 @@ class _ShelterCasesScreenState extends State<ShelterCasesScreen> {
   }
 
   Widget _buildCaseCard(Map<String, dynamic> caseData, {required bool isOpenPool}) {
+    // 🚨 RE-ADDING THE VARIABLES THAT GOT LOST
     final String id = caseData['id'] ?? '';
     final String shortId = "CASE-${id.length > 4 ? id.substring(0, 4).toUpperCase() : id}";
     final String animalType = caseData['animal_type'] ?? 'Unknown';
     final String severity = caseData['severity'] ?? 'moderate';
     final String timeAgo = _getTimeAgo(caseData['created_at']);
 
-    // 🚨 Extracting the new details!
     final String locationText = caseData['location_text'] ?? 'Pinned on map (Coordinates available)';
     final String description = caseData['description'] ?? 'No additional details provided.';
-    // If you want to use the coordinates later for map routing:
-    // final double? lat = caseData['location_lat'];
-    // final double? lng = caseData['location_lng'];
 
     Color severityColor = severity == 'emergency' ? _dangerRed : (severity == 'low' ? _primaryGreen : const Color(0xffd97706));
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 15),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text("Reported $animalType", style: GoogleFonts.nunito(fontSize: 16, fontWeight: FontWeight.w900, color: _textDark)),
-              _buildBadge(severity.toUpperCase(), severityColor),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text("$shortId • Reported: $timeAgo", style: GoogleFonts.nunito(fontSize: 12, fontWeight: FontWeight.w600, color: _textLight)),
-          const SizedBox(height: 15),
-
-          // 🚨 NEW: LOCATION INDICATOR ROW
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Icon(Icons.location_on_outlined, size: 18, color: Colors.redAccent),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  locationText,
-                  style: GoogleFonts.nunito(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.black87),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          // 🚨 NEW: DESCRIPTION/NOTES BOX
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(12)),
-            child: Column(
+    // 🚨 1. WRAP THE CONTAINER IN A GESTURE DETECTOR
+    return GestureDetector(
+      onTap: () {
+        if (isOpenPool) {
+          // This opens the dialog so they can claim it from "the inside"
+          _showClaimConfirmationDialog(caseData);
+        } else if (!widget.isReadOnly) {
+          // Only allow managing cases if they own it and aren't read-only
+          _showManageCaseDialog(caseData);
+        }
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 15),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.grey.shade200),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 🚨 HEADER SECTION WITH IMAGE
+            Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text("Case Details", style: GoogleFonts.nunito(fontSize: 12, fontWeight: FontWeight.w800, color: _textDark)),
-                const SizedBox(height: 4),
-                Text(
-                  description,
-                  style: GoogleFonts.nunito(fontSize: 13, color: Colors.grey.shade700, fontWeight: FontWeight.w600),
+                // 1. DYNAMIC IMAGE (Using FutureBuilder because the stream doesn't join tables)
+                FutureBuilder<List<String>>(
+                    future: _fetchCasePhotos(id),
+                    builder: (context, snapshot) {
+                      String? imageUrl;
+                      if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+                        imageUrl = snapshot.data!.first; // Grab the first photo for the card
+                      }
+
+                      return Container(
+                        height: 60,
+                        width: 60,
+                        margin: const EdgeInsets.only(right: 15),
+                        decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(15)),
+                        clipBehavior: Clip.hardEdge,
+                        child: imageUrl != null
+                            ? Image.network(
+                          imageUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => Icon(Icons.broken_image, color: Colors.grey.shade400),
+                        )
+                            : (snapshot.connectionState == ConnectionState.waiting
+                            ? const Center(child: SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2)))
+                            : Icon(Icons.pets, color: Colors.grey.shade400)),
+                      );
+                    }
+                ),
+
+                // 2. TEXT DETAILS
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text("Reported $animalType", style: GoogleFonts.nunito(fontSize: 16, fontWeight: FontWeight.w900, color: _textDark)),
+                          _buildBadge(severity.toUpperCase(), severityColor),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text("$shortId • Reported: $timeAgo", style: GoogleFonts.nunito(fontSize: 12, fontWeight: FontWeight.w600, color: _textLight)),
+                    ],
+                  ),
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: 15),
+            const SizedBox(height: 15),
 
-          // BUTTONS
+            // 🚨 EXISTING: LOCATION INDICATOR ROW
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.location_on_outlined, size: 18, color: Colors.redAccent),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    locationText,
+                    style: GoogleFonts.nunito(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.black87),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
 
-          if (isOpenPool)
-          // BUTTONS
-            if (!widget.isReadOnly) ...[ // 🚨 Only show buttons if NOT read-only
+            // 🚨 EXISTING: DESCRIPTION/NOTES BOX
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(12)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("Case Details", style: GoogleFonts.nunito(fontSize: 12, fontWeight: FontWeight.w800, color: _textDark)),
+                  const SizedBox(height: 4),
+                  Text(
+                    description,
+                    style: GoogleFonts.nunito(fontSize: 13, color: Colors.grey.shade700, fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 15),
+
+            // BUTTONS
+            if (!widget.isReadOnly) ...[
               if (isOpenPool)
                 InkWell(
                   onTap: _isClaiming ? null : () => _showClaimConfirmationDialog(caseData),
@@ -347,13 +398,12 @@ class _ShelterCasesScreenState extends State<ShelterCasesScreen> {
                     ),
                   ),
                 ),
-            ] // 🚨 Close the read-only check
-        ],
+            ]
+          ],
+        ),
       ),
     );
-  }
-
-  // ==========================================
+  }  // ==========================================
   // LOGIC: Update Assigned Case Details
   // ==========================================
   Future<void> _updateAssignedCase(String caseId, String currentDescription, String? newNote, String newSeverity) async {
@@ -523,8 +573,11 @@ class _ShelterCasesScreenState extends State<ShelterCasesScreen> {
       for (var row in data) {
         final bucket = row['bucket'];
         final path = row['path'];
-        final url = Supabase.instance.client.storage.from(bucket).getPublicUrl(path);
-        urls.add(url);
+        String rawUrl = Supabase.instance.client.storage.from(bucket).getPublicUrl(path);
+
+        // 🚨 APPLY OUR URL ROUTING FIX
+        String fixedUrl = rawUrl.replaceFirst('.storage.supabase.co/v1/', '.supabase.co/storage/v1/');
+        urls.add(fixedUrl);
       }
       return urls;
     } catch (e) {
@@ -532,7 +585,6 @@ class _ShelterCasesScreenState extends State<ShelterCasesScreen> {
       return [];
     }
   }
-
   // ==========================================
   // UI: Show Claim Confirmation Dialog
   // ==========================================

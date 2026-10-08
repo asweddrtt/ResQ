@@ -49,14 +49,16 @@ class _ShelterRequestsScreenState extends State<ShelterRequestsScreen> {
       }
 
       // 2. Fetch Requests + Animal Data + User Data in ONE query
+      // 2. Fetch Requests + Animal Data + User Data in ONE query
+      // Removed the 'animal:' and 'applicant:' aliases to prevent filter crashes
       final data = await supabase
           .from('adoption_requests')
           .select('''
             id, status, created_at, decision_reason, applicant_user_id,
-            animal:animals!inner ( name, age, breed, shelter_id ),
-            applicant:users!adoption_requests_applicant_user_id_fkey ( full_name, phone )
+            animals!inner ( name, age, breed, shelter_id ),
+            users!adoption_requests_applicant_user_id_fkey ( full_name, phone )
           ''')
-          .eq('animals.shelter_id', _myShelterId!)
+          .eq('animals.owner_user_id', user.id)
           .order('created_at', ascending: false);
 
       if (mounted) {
@@ -66,7 +68,8 @@ class _ShelterRequestsScreenState extends State<ShelterRequestsScreen> {
         });
       }
     } catch (e) {
-      debugPrint("Error fetching requests: $e");
+      // 🚨 Added a loud debug print so you can see the EXACT error if it fails
+      debugPrint("🚨 SUPABASE ERROR fetching requests: $e");
       if (mounted) setState(() => _isLoading = false);
     }
   }
@@ -168,13 +171,7 @@ class _ShelterRequestsScreenState extends State<ShelterRequestsScreen> {
                         ],
                       ),
                     ),
-                    Row(
-                      children: [
-                        Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), shape: BoxShape.circle), child: const Icon(Icons.search, color: Colors.black87, size: 20)),
-                        const SizedBox(width: 10),
-                        Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), shape: BoxShape.circle), child: const Icon(Icons.tune, color: Colors.black87, size: 20)),
-                      ],
-                    )
+
                   ],
                 ),
               ),
@@ -232,8 +229,8 @@ class _ShelterRequestsScreenState extends State<ShelterRequestsScreen> {
       itemCount: filteredRequests.length,
       itemBuilder: (context, index) {
         final req = filteredRequests[index];
-        final animal = req['animal'] ?? {};
-        final applicant = req['applicant'] ?? {};
+        final animal = req['animals'] ?? {};
+        final applicant = req['users'] ?? {};
 
         final String reqId = req['id'] ?? '';
         final String shortId = "RQ-${reqId.length > 4 ? reqId.substring(0, 4).toUpperCase() : reqId}";

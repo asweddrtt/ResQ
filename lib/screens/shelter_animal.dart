@@ -39,6 +39,7 @@ class _ShelterAnimalsScreenState extends State<ShelterAnimalsScreen> {
           .eq('user_id', user.id)
           .maybeSingle();
 
+
       if (data != null && mounted) {
         setState(() {
           _myShelterId = data['id'];
@@ -92,13 +93,7 @@ class _ShelterAnimalsScreenState extends State<ShelterAnimalsScreen> {
                       ],
                     ),
                   ),
-                  Row(
-                    children: [
-                      Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), shape: BoxShape.circle), child: const Icon(Icons.search, color: Colors.black87, size: 20)),
-                      const SizedBox(width: 10),
-                      Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), shape: BoxShape.circle), child: const Icon(Icons.tune, color: Colors.black87, size: 20)),
-                    ],
-                  )
+
                 ],
               ),
             ),
@@ -116,7 +111,7 @@ class _ShelterAnimalsScreenState extends State<ShelterAnimalsScreen> {
                 stream: Supabase.instance.client
                     .from('animals')
                     .stream(primaryKey: ['id'])
-                    .eq('shelter_id', _myShelterId!)
+                    .eq('owner_user_id', Supabase.instance.client.auth.currentUser!.id!)
                     .order('created_at', ascending: false),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
@@ -521,6 +516,9 @@ class _ShelterAnimalsScreenState extends State<ShelterAnimalsScreen> {
 // ==========================================
 // 🚨 SMART WIDGET TO FETCH COVER PHOTO
 // ==========================================
+// ==========================================
+// 🚨 SMART WIDGET TO FETCH COVER PHOTO
+// ==========================================
 class _AnimalCoverImage extends StatefulWidget {
   final String animalId;
   const _AnimalCoverImage({required this.animalId});
@@ -548,12 +546,15 @@ class _AnimalCoverImageState extends State<_AnimalCoverImage> {
           .maybeSingle();
 
       if (data != null && mounted) {
-        final String publicUrl = Supabase.instance.client.storage
+        String rawUrl = Supabase.instance.client.storage
             .from(data['bucket'])
             .getPublicUrl(data['path']);
 
+        // 🚨 APPLY OUR URL ROUTING FIX
+        String fixedUrl = rawUrl.replaceFirst('.storage.supabase.co/v1/', '.supabase.co/storage/v1/');
+
         setState(() {
-          imageUrl = publicUrl;
+          imageUrl = fixedUrl;
         });
       }
     } catch (e) {
@@ -563,19 +564,22 @@ class _AnimalCoverImageState extends State<_AnimalCoverImage> {
 
   @override
   Widget build(BuildContext context) {
+    // 🚨 UPDATED TO USE Image.network WITH errorBuilder
     return Container(
       height: 80,
       width: 80,
       decoration: BoxDecoration(
         color: Colors.grey.shade200,
         borderRadius: BorderRadius.circular(15),
-        image: imageUrl != null
-            ? DecorationImage(image: NetworkImage(imageUrl!), fit: BoxFit.cover)
-            : null,
       ),
-      child: imageUrl == null
-          ? Icon(Icons.pets, color: Colors.grey.shade400)
-          : null,
+      clipBehavior: Clip.hardEdge,
+      child: imageUrl != null
+          ? Image.network(
+        imageUrl!,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => Icon(Icons.broken_image, color: Colors.grey.shade400),
+      )
+          : Icon(Icons.pets, color: Colors.grey.shade400),
     );
   }
 }

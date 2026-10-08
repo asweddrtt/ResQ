@@ -1,7 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../go_router/routes.dart';
@@ -19,6 +22,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _userName = "Loading...";
   String _userRole = "Volunteer";
 
+  String? _avatarUrl;
+  bool _isUploadingAvatar = false;
+
   @override
   void initState() {
     super.initState();
@@ -35,7 +41,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       final data = await Supabase.instance.client
           .from('users')
-          .select('full_name, role') // 🚨 CHANGED: Match your actual DB columns!
+          .select('full_name, role,avatar_url') // 🚨 CHANGED: Match your actual DB columns!
           .eq('id', user.id)
           .maybeSingle();
 
@@ -48,15 +54,72 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _userRole = (data['role'] ?? 'volunteer').toString();
           // Capitalize first letter of role
           _userRole = _userRole[0].toUpperCase() + _userRole.substring(1);
+          _avatarUrl = data['avatar_url']; // Capture the avatar URL
 
           _isLoading = false;
         });
-      } else {
+      }
+      else {
         if (mounted) setState(() => _isLoading = false);
       }
     } catch (e) {
       debugPrint("Error fetching profile: $e");
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _updateAvatar() async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
+
+    if (image == null) return;
+
+    setState(() => _isUploadingAvatar = true);
+
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user == null) throw 'User not logged in';
+
+      final file = File(image.path);
+      final fileExt = image.path.split('.').last;
+      final fileName = '${user.id}_avatar.$fileExt';
+      final filePath = '/$fileName';
+
+      // Upload to Supabase Storage
+      // To this:
+      await Supabase.instance.client.storage.from('profile_photos').upload(
+        filePath,
+        file,
+        fileOptions: const FileOptions(upsert: true),
+      );
+
+      // And update the public URL retrieval:
+      final publicUrl = Supabase.instance.client.storage.from('profile_photos').getPublicUrl(filePath);
+
+      // Get public URL
+
+      // Update users table
+      await Supabase.instance.client.from('users').update({
+        'avatar_url': publicUrl,
+      }).eq('id', user.id);
+
+      setState(() => _avatarUrl = publicUrl);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Profile picture updated!'), backgroundColor: Color(0xff5bb381)),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error updating avatar: $e'), backgroundColor: Colors.redAccent),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isUploadingAvatar = false);
+      }
     }
   }
 
@@ -129,10 +192,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 child: Row(
                   children: [
-                    const CircleAvatar(
-                      radius: 35,
-                      backgroundColor: Color(0xff5bb381),
-                      child: Icon(Icons.person, color: Colors.white, size: 35),
+                    GestureDetector(
+                      onTap: _isUploadingAvatar ? null : _updateAvatar,
+                      child: Stack(
+                        alignment: Alignment.bottomRight,
+                        children: [
+                          CircleAvatar(
+                            radius: 35,
+                            backgroundColor: const Color(0xff5bb381),
+                            backgroundImage: _avatarUrl != null ? NetworkImage(_avatarUrl!) : null,
+                            child: _avatarUrl == null
+                                ? const Icon(Icons.person, color: Colors.white, size: 35)
+                                : null,
+                          ),
+                          if (_isUploadingAvatar)
+                            const Positioned.fill(
+                              child: CircularProgressIndicator(color: Colors.white),
+                            )
+                          else
+                            Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: const BoxDecoration(
+                                color: Color(0xffffa94d),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.camera_alt, size: 12, color: Colors.white),
+                            ),
+                        ],
+                      ),
                     ),
                     const SizedBox(width: 15),
 
@@ -643,31 +730,56 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
+                                        // 1. Text Info (Takes up remaining space)
                                         Expanded(
-                                          child: Text(
-                                            report['animal_type'] ?? 'Unknown Animal',
-                                            style: GoogleFonts.nunito(fontSize: 16, fontWeight: FontWeight.w800),
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                report['animal_type'] ?? 'Unknown Animal',
+                                                style: GoogleFonts.nunito(fontSize: 16, fontWeight: FontWeight.w800),
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                dateStr,
+                                                style: GoogleFonts.nunito(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w700),
+                                              ),
+                                            ],
                                           ),
                                         ),
-                                        Text(
-                                          dateStr,
-                                          style: GoogleFonts.nunito(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w700),
-                                        ),
-                                        // 🚨 CHANGED: Added Edit Button
-                                        IconButton(
-                                          icon: const Icon(Icons.edit_note, color: Color(0xff5bb381)),
-                                          padding: EdgeInsets.zero,
-                                          constraints: const BoxConstraints(),
-                                          onPressed: () {
-                                            _showEditReportSheet(report, () {
-                                              // Callback to refresh the list when edit is done
-                                              setSheetState(() {
-                                                futureKey = UniqueKey();
-                                              });
-                                            });
-                                          },
+
+                                        // 2. Action Buttons (Edit & Delete safely grouped together)
+                                        Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            IconButton(
+                                              icon: const Icon(Icons.edit_note, color: Color(0xff5bb381)),
+                                              padding: EdgeInsets.zero,
+                                              constraints: const BoxConstraints(),
+                                              onPressed: () {
+                                                _showEditReportSheet(report, () {
+                                                  setSheetState(() {
+                                                    futureKey = UniqueKey();
+                                                  });
+                                                });
+                                              },
+                                            ),
+                                            const SizedBox(width: 15), // Slightly wider gap so they don't misclick
+                                            IconButton(
+                                              icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                                              padding: EdgeInsets.zero,
+                                              constraints: const BoxConstraints(),
+                                              onPressed: () {
+                                                _confirmDeleteReport(report, () {
+                                                  setSheetState(() {
+                                                    futureKey = UniqueKey();
+                                                  });
+                                                });
+                                              },
+                                            ),
+                                          ],
                                         )
                                       ],
                                     ),
@@ -708,6 +820,69 @@ class _ProfileScreenState extends State<ProfileScreen> {
             }
         );
       },
+    );
+  }
+
+  // ==========================================
+  // LOGIC: Confirm & Delete Report
+  // ==========================================
+  void _confirmDeleteReport(Map<String, dynamic> report, VoidCallback onDeleteSuccess) {
+    showDialog(
+        context: context,
+        builder: (dialogContext) {
+          bool isDeleting = false;
+
+          return StatefulBuilder(
+              builder: (context, setDialogState) {
+                return AlertDialog(
+                  backgroundColor: Colors.white,
+                  title: Text("Delete Report?", style: GoogleFonts.nunito(fontWeight: FontWeight.w900, color: Colors.redAccent)),
+                  content: Text(
+                    "Are you sure you want to delete this report? This cannot be undone.",
+                    style: GoogleFonts.nunito(color: Colors.black87),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(dialogContext),
+                      child: Text("Cancel", style: GoogleFonts.nunito(color: Colors.grey)),
+                    ),
+                    TextButton(
+                      onPressed: isDeleting ? null : () async {
+                        setDialogState(() => isDeleting = true);
+                        try {
+                          await Supabase.instance.client
+                              .from('cases')
+                              .delete()
+                              .eq('id', report['id']);
+
+                          if (dialogContext.mounted) {
+                            Navigator.pop(dialogContext); // Close dialog
+                            onDeleteSuccess(); // Trigger parent list refresh
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text("Report deleted successfully."), backgroundColor: Colors.redAccent),
+                            );
+                          }
+                        } catch (e) {
+                          if (dialogContext.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text("Error deleting: $e"), backgroundColor: Colors.redAccent),
+                            );
+                          }
+                        } finally {
+                          if (dialogContext.mounted) {
+                            setDialogState(() => isDeleting = false);
+                          }
+                        }
+                      },
+                      child: isDeleting
+                          ? const SizedBox(height: 15, width: 15, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.redAccent))
+                          : Text("Delete", style: GoogleFonts.nunito(color: Colors.redAccent, fontWeight: FontWeight.w800)),
+                    ),
+                  ],
+                );
+              }
+          );
+        }
     );
   }
 

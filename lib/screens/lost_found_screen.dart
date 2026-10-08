@@ -141,56 +141,7 @@ class _LostFoundScreenState extends State<LostFoundScreen> {
                     ),
                     const SizedBox(height: 20),
 
-                    // ==========================================
-                    // 2. SEARCH BAR & NEAR ME
-                    // ==========================================
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(25),
-                              boxShadow: [
-                                BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 5),
-                              ],
-                            ),
-                            child: TextField(
-                              decoration: InputDecoration(
-                                hintText: "Search lost pets by name, breed, or area",
-                                hintStyle: GoogleFonts.nunito(color: Colors.grey[400], fontSize: 13),
-                                prefixIcon: Icon(Icons.search, color: Colors.grey[400]),
-                                border: InputBorder.none,
-                                contentPadding: const EdgeInsets.symmetric(vertical: 15),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        // Near Me Button
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          decoration: BoxDecoration(
-                            color: const Color(0xffffa94d),
-                            borderRadius: BorderRadius.circular(25),
-                            boxShadow: [
-                              BoxShadow(color: const Color(0xffffa94d).withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 3)),
-                            ],
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.my_location_outlined, color: Colors.black87, size: 18),
-                              const SizedBox(width: 4),
-                              Text(
-                                "Near me",
-                                style: GoogleFonts.nunito(fontWeight: FontWeight.bold, color: Colors.black87, fontSize: 13),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
+
 
                     // ==========================================
                     // 3. MAP PREVIEW
@@ -385,11 +336,22 @@ class _LostFoundScreenState extends State<LostFoundScreen> {
                           // Time logic
                           final timeString = _timeAgo(report['created_at']);
 
-                          // Fetch primary image URL if any
+                          // imageUrl LOGIC
                           String? imageUrl;
-                          if (report['lost_found_photos'] != null && report['lost_found_photos'] is List && report['lost_found_photos'].isNotEmpty) {
-                            var photo = report['lost_found_photos'][0];
-                            imageUrl = Supabase.instance.client.storage.from(photo['bucket']).getPublicUrl(photo['path']);
+                          final photos = report['lost_found_photos'];
+
+                          if (photos is List && photos.isNotEmpty) {
+                            final photo = photos.first;
+                            final bucket = photo['bucket']?.toString();
+                            final path = photo['path']?.toString();
+
+                            if (bucket != null && path != null) {
+                              // Generate the default URL from the SDK
+                              String rawUrl = Supabase.instance.client.storage.from(bucket).getPublicUrl(path);
+
+                              // Force the correct routing path to fix the 404 error
+                              imageUrl = rawUrl.replaceFirst('.storage.supabase.co/v1/', '.supabase.co/storage/v1/');
+                            }
                           }
 
                           // Badging logic based on "type"
@@ -421,7 +383,7 @@ class _LostFoundScreenState extends State<LostFoundScreen> {
                                           color: Colors.grey[200],
                                           borderRadius: BorderRadius.circular(15),
                                           image: imageUrl != null
-                                              ? DecorationImage(image: NetworkImage(imageUrl), fit: BoxFit.cover)
+                                              ? DecorationImage(image: NetworkImage(imageUrl), fit: BoxFit.contain)
                                               : null,
                                         ),
                                         child: imageUrl == null
@@ -606,7 +568,7 @@ class FullScreenMapScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Lost & Found Map', style: GoogleFonts.nunito(fontWeight: FontWeight.bold)),
+        title: Text('Cases map', style: GoogleFonts.nunito(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black87,
         elevation: 0,

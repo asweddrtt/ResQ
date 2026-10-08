@@ -46,7 +46,7 @@ class _ShelterHomeScreenState extends State<ShelterHomeScreen> {
           ShelterCasesScreen(),     // Index 0: Cases
           ShelterAnimalsScreen(),   // Index 1: Animals
           ShelterRequestsScreen(),  // Index 2: Requests
-          MessagesScreen(isShelter: true),          // Index 3: Messages
+          MessagesScreen(isShelter: false),          // Index 3: Messages
           OrganizationProfileScreen()
         ],
       ),

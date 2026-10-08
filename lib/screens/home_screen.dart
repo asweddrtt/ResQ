@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:mobile_app/screens/shelter_cases.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -31,6 +33,9 @@ class _HomeScreenState extends State<HomeScreen> {
   // ==========================================
   String _userName = 'User';
   bool _isLoading = true;
+
+  final MapController _mapController = MapController();
+  final LatLng _defaultLocation = const LatLng(30.0074, 31.4913);
 
   List<Map<String, dynamic>> _recentCases = [];
   List<Map<String, dynamic>> _localShelters = [];
@@ -67,7 +72,7 @@ class _HomeScreenState extends State<HomeScreen> {
       // 2. Get 3 Most Recent Urgent Cases (Open pool)
       final casesData = await supabase
           .from('cases')
-          .select()
+          .select('*, case_photos(bucket, path)')
           .eq('status', 'new')
           .order('created_at', ascending: false)
           .limit(3);
@@ -197,19 +202,111 @@ class _HomeScreenState extends State<HomeScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Search Bar
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text("Map preview", style: GoogleFonts.nunito(fontSize: 12, color: Colors.grey[600], fontWeight: FontWeight.bold)),
+                  Text("Lost & found pins near you", style: GoogleFonts.nunito(fontSize: 12, color: Colors.grey[600], fontWeight: FontWeight.bold)),
+                ],
+              ),
+              const SizedBox(height: 10),
               Container(
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(25), border: Border.all(color: Colors.grey.shade200)),
-                child: TextField(
-                  decoration: InputDecoration(
-                    hintText: "Search cases, shelters, vets...",
-                    hintStyle: GoogleFonts.nunito(color: Colors.grey.shade400, fontSize: 14, fontWeight: FontWeight.w600),
-                    prefixIcon: Icon(Icons.search, color: Colors.grey.shade400),
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 15),
-                  ),
+                height: 150,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8)],
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Stack(
+                  children: [
+                    FlutterMap(
+                      mapController: _mapController,
+                      options: MapOptions(
+                        initialCenter: _defaultLocation,
+                        initialZoom: 13.0,
+                        interactionOptions: const InteractionOptions(flags: InteractiveFlag.none),
+                      ),
+                      children: [
+                        TileLayer(
+                          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                          userAgentPackageName: 'com.yourcompany.resq',
+                        ),
+                        MarkerLayer(
+                          markers: _recentCases
+                              .where((r) => r['location_lat'] != null && r['location_lng'] != null)
+                              .map((r) {
+                            final isLost = r['type'] == 'lost';
+                            return Marker(
+                              point: LatLng(
+                                (r['location_lat'] as num).toDouble(),
+                                (r['location_lng'] as num).toDouble(),
+                              ),
+                              width: 28, height: 28,
+                              child: Icon(
+                                Icons.location_on,
+                                color: isLost ? Colors.red : const Color(0xff5bb381),
+                                size: 28,
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ],
+                    ),
+                    // "Open Map" Overlay Button
+                    Positioned(
+                      bottom: 10,
+                      right: 10,
+                      child: GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => FullScreenMapScreen(reports: _recentCases),
+                            ),
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xff2d3436), // Dark slate
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.open_in_full, color: Colors.white, size: 14),
+                              const SizedBox(width: 5),
+                              Text("Open map", style: GoogleFonts.nunito(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    )
+                  ],
                 ),
               ),
-              const SizedBox(height: 30),
+              const SizedBox(height: 10),
+              // Map Legend
+              Row(
+                children: [
+                  Row(
+                    children: [
+                      Container(width: 8, height: 8, decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle)),
+                      const SizedBox(width: 5),
+                      Text("Lost", style: GoogleFonts.nunito(fontSize: 12, color: Colors.grey[600], fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  const SizedBox(width: 15),
+                  Row(
+                    children: [
+                      Container(width: 8, height: 8, decoration: const BoxDecoration(color: Color(0xff5bb381), shape: BoxShape.circle)),
+                      const SizedBox(width: 5),
+                      Text("Found", style: GoogleFonts.nunito(fontSize: 12, color: Colors.grey[600], fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
 
               if (_isLoading)
                 const Center(child: Padding(padding: EdgeInsets.all(40.0), child: CircularProgressIndicator()))
@@ -221,7 +318,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => const ShelterCasesScreen(isReadOnly: true),
+                      builder: (context) => const ShelterCasesScreen(isReadOnly: false),
                     ),
                   );
                 }),
@@ -303,6 +400,48 @@ class _HomeScreenState extends State<HomeScreen> {
   // UI HELPER WIDGETS
   // ==========================================
 
+  // ==========================================
+  // ASSIGN / CLAIM CASE
+  // ==========================================
+  Future<void> _claimCase(String caseId) async {
+    try {
+      final supabase = Supabase.instance.client;
+      final user = supabase.auth.currentUser;
+
+      if (user == null) return;
+
+      // Optional: Show a loading indicator here if desired
+
+      await supabase.from('cases').update({
+        'status': 'assigned',
+        'claimed_by_id': user.id,
+        // 'claimed_by_type': 'user', // Uncomment and set to 'shelter' or 'user' based on your app's logic
+        'claimed_at': DateTime.now().toUtc().toIso8601String(),
+      }).eq('id', caseId);
+
+      if (mounted) {
+        Navigator.pop(context); // Close the dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Case assigned to you successfully!'),
+            backgroundColor: Color(0xff5bb381),
+          ),
+        );
+        _fetchHomeFeedData(); // Refresh the feed to remove the case from "Urgent Alerts"
+      }
+    } catch (e) {
+      debugPrint("Error assigning case: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to assign case. Please try again.'),
+            backgroundColor: Color(0xfff46363),
+          ),
+        );
+      }
+    }
+  }
+
   Widget _buildSectionHeader(String title, String actionText, {VoidCallback? onTap}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -336,47 +475,83 @@ class _HomeScreenState extends State<HomeScreen> {
 
     Color badgeColor = severity == 'emergency' ? _dangerRed : (severity == 'low' ? _primaryGreen : const Color(0xffd97706));
 
+    // 🚨 NEW: Extract and route the image URL
+    String? imageUrl;
+    final photos = caseData['case_photos'];
+    if (photos != null && photos is List && photos.isNotEmpty) {
+      final photo = photos.first;
+      final bucket = photo['bucket']?.toString();
+      final path = photo['path']?.toString();
+
+      if (bucket != null && path != null) {
+        String rawUrl = Supabase.instance.client.storage.from(bucket).getPublicUrl(path);
+        // Force correct routing
+        imageUrl = rawUrl.replaceFirst('.storage.supabase.co/v1/', '.supabase.co/storage/v1/');
+      }
+    }
+
     // 🚨 Wrap the Container in a GestureDetector
     return GestureDetector(
         onTap: () => _showCaseDetailsDialog(caseData),
         child: Container(
-      margin: const EdgeInsets.only(bottom: 15), padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.grey.shade200), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8)]),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(height: 60, width: 60, decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(15)), child: Icon(Icons.pets, color: Colors.grey.shade400)),
-          const SizedBox(width: 15),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          margin: const EdgeInsets.only(bottom: 15),
+          padding: const EdgeInsets.all(15),
+          decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.grey.shade200),
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8)]
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 🚨 UPDATED: Dynamic Image Container with 404 fallback
+              Container(
+                height: 60,
+                width: 60,
+                decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(15)
+                ),
+                clipBehavior: Clip.hardEdge,
+                child: imageUrl != null
+                    ? Image.network(
+                  imageUrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => Icon(Icons.broken_image, color: Colors.grey.shade400),
+                )
+                    : Icon(Icons.pets, color: Colors.grey.shade400),
+              ),
+              const SizedBox(width: 15),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text("Reported $animalType", style: GoogleFonts.nunito(fontWeight: FontWeight.w900, fontSize: 15, color: Colors.black87)),
-                    Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: badgeColor.withOpacity(0.1), borderRadius: BorderRadius.circular(8)), child: Text(severity.toUpperCase(), style: GoogleFonts.nunito(fontSize: 9, color: badgeColor, fontWeight: FontWeight.w900)))
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text("Reported $animalType", style: GoogleFonts.nunito(fontWeight: FontWeight.w900, fontSize: 15, color: Colors.black87)),
+                        Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: badgeColor.withOpacity(0.1), borderRadius: BorderRadius.circular(8)), child: Text(severity.toUpperCase(), style: GoogleFonts.nunito(fontSize: 9, color: badgeColor, fontWeight: FontWeight.w900)))
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text("Reported $timeAgo • Location Pinned", style: GoogleFonts.nunito(fontSize: 11, color: Colors.grey.shade500, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Text("View Details", style: GoogleFonts.nunito(fontSize: 12, fontWeight: FontWeight.bold, color: _primaryGreen)),
+                        const SizedBox(width: 4),
+                        Icon(Icons.arrow_forward_ios, size: 10, color: _primaryGreen),
+                      ],
+                    )
                   ],
                 ),
-                const SizedBox(height: 4),
-                Text("Reported $timeAgo • Location Pinned", style: GoogleFonts.nunito(fontSize: 11, color: Colors.grey.shade500, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Text("View Details", style: GoogleFonts.nunito(fontSize: 12, fontWeight: FontWeight.bold, color: _primaryGreen)),
-                    const SizedBox(width: 4),
-                    Icon(Icons.arrow_forward_ios, size: 10, color: _primaryGreen),
-                  ],
-                )
-              ],
-            ),
-          )
-        ],
-      ),
-    )
+              )
+            ],
+          ),
+        )
     );
   }
-
   Widget _buildPartnerCard({required String title, required String subtitle, required IconData icon, required Color color}) {
     return Container(
       width: 130, margin: const EdgeInsets.only(right: 15), padding: const EdgeInsets.all(15),
@@ -458,8 +633,22 @@ class _HomeScreenState extends State<HomeScreen> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: Text("Close", style: GoogleFonts.nunito(color: _primaryGreen, fontWeight: FontWeight.bold)),
+                child: Text("Close", style: GoogleFonts.nunito(color: Colors.grey.shade600, fontWeight: FontWeight.bold)),
               ),
+              // Only show the assign button if the case is 'new' or 'open'
+              if (caseData['status'] == 'new' || caseData['status'] == 'open')
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _primaryGreen,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    elevation: 0,
+                  ),
+                  onPressed: () => _claimCase(caseData['id']),
+                  child: Text(
+                      "Assign to Me",
+                      style: GoogleFonts.nunito(color: Colors.white, fontWeight: FontWeight.bold)
+                  ),
+                ),
             ],
           );
         }
