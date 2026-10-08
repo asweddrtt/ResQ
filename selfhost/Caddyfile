@@ -1,0 +1,7 @@
+# Put the API behind HTTPS (Android/iOS block plain http by default).
+# Replace the domain with yours; a free option is <ip-with-dashes>.sslip.io,
+# e.g. 129-151-10-20.sslip.io, or a DuckDNS subdomain.
+# Caddy gets and renews the Let's Encrypt certificate automatically.
+api.example.com {
+	reverse_proxy localhost:8000
+}
